@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0b10">
+    <title>Heartive</title>
+    <meta name="description" content="For shows and movies idk man i was bored">
+
+    <link rel="icon" href="previews/branding/favicon-128x128.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="previews/branding/favicon-180x180.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="previews/branding/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="previews/branding/favicon-16x16.png">
+    <link rel="manifest" href="manifest.json">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://api.themoviedb.org">
+    <link rel="preconnect" href="https://image.tmdb.org">
+
+    <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+    <a class="skip" href="#view">Skip to content</a>
+
+    <header class="topbar" id="topbar">
+        <a class="brand" href="#/" aria-label="Heartive home">
+            <img src="previews/branding/favicon-128x128.png" alt="" draggable="false">
+            <span>Heartive</span>
+        </a>
+        <nav class="nav" aria-label="Main">
+            <a href="#/" data-nav="home">Home</a>
+            <a href="#/movies" data-nav="movies">Movies</a>
+            <a href="#/tv" data-nav="tv">Series</a>
+            <a href="#/list" data-nav="list">My List</a>
+            <a href="#/news" data-nav="news">News</a>
+            <a href="#/calendar" data-nav="calendar">Calendar</a>
+        </nav>
+        <form class="search" id="searchForm" role="search" autocomplete="off">
+            <span class="search-icon" data-icon="search"></span>
+            <input id="searchInput" type="search" placeholder="Search movies, series, people" aria-label="Search">
+            <kbd>/</kbd>
+        </form>
+        <div class="top-actions">
+            <div class="menu-wrap mobile-only">
+                <button class="icon-btn" id="menuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="topMenu" title="Menu" aria-label="Menu"><span data-icon="menu"></span></button>
+                <div class="top-menu" id="topMenu" role="menu" hidden>
+                    <a role="menuitem" href="#/settings" data-menu="settings"><span data-icon="sliders"></span>Settings</a>
+                    <a role="menuitem" href="#/news" data-menu="news"><span data-icon="news"></span>News</a>
+                    <a role="menuitem" href="#/calendar" data-menu="calendar"><span data-icon="calendar"></span>Calendar</a>
+                    <button role="menuitem" type="button" data-menu="surprise"><span data-icon="shuffle"></span>Surprise me</button>
+                </div>
+            </div>
+            <button class="icon-btn desktop-only" id="surpriseBtn" title="Surprise me" aria-label="Surprise me"><span data-icon="shuffle"></span></button>
+            <a class="icon-btn desktop-only" href="#/settings" data-nav="settings" title="Settings" aria-label="Settings"><span data-icon="sliders"></span></a>
+        </div>
+    </header>
+
+    <main id="view" tabindex="-1"></main>
+
+    <nav class="tabbar" aria-label="Mobile">
+        <a href="#/" data-nav="home"><span data-icon="home"></span>Home</a>
+        <a href="#/movies" data-nav="movies"><span data-icon="film"></span>Movies</a>
+        <a href="#/tv" data-nav="tv"><span data-icon="tv"></span>Series</a>
+        <a href="#/search" data-nav="search"><span data-icon="search"></span>Search</a>
+        <a href="#/list" data-nav="list"><span data-icon="bookmark"></span>My List</a>
+    </nav>
+
+    <div id="modalRoot"></div>
+    <div id="toasts" aria-live="polite"></div>
+
+    <script src="assets/js/core.js"></script>
+    <script src="assets/js/embeds.js"></script>
+    <script src="assets/js/api.js"></script>
+    <script src="assets/js/tracker.js"></script>
+    <script src="assets/js/components.js"></script>
+    <script src="assets/js/player.js"></script>
+    <script src="assets/js/pages.js"></script>
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
