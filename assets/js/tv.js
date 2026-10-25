@@ -192,6 +192,10 @@
     new MutationObserver(() => {
         const modal = playerModal();
         if (modal) tunePlayer(modal);
+        // YouTube won't play in the TV app: it runs from file://, so YouTube gets no referrer
+        // and shows "Video player configuration error". The hosted trailer page embeds it instead.
+        const trailer = location.protocol === 'file:' && document.querySelector('#modalRoot .modal-video iframe[src*="youtube"]');
+        if (trailer) trailer.src = 'https://jbw9.github.io/movies/trailer.html?v=' + new URL(trailer.src).pathname.split('/').pop();
     }).observe(document.getElementById('modalRoot'), { childList: true, subtree: true });
 
     // If the player grabs focus anyway (a click, or its own script), take it straight back.
@@ -256,7 +260,9 @@
     // cinesrc takes play/pause commands, so it pauses in place. It starts itself again a few
     // seconds after a pause it didn't see come from its own controls, so a pause is held until
     // OK is pressed again.
-    let heldPause = null, cinesrcAt = 0;
+    // cinesrcAt is the position last reported by cinesrcClock, so a skip never starts from the
+    // previous video's time.
+    let heldPause = null, cinesrcAt = 0, cinesrcClock = null;
 
     // Big icons over the video so the remote's pauses and skips show they went through.
     const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
@@ -283,7 +289,10 @@
     window.addEventListener('message', e => {
         const frame = document.querySelector('#modalRoot #pFrame iframe');
         if (!frame || e.source !== frame.contentWindow || !e.data) return;
-        if (e.data.type === 'cinesrc:timeupdate') cinesrcAt = e.data.currentTime;
+        if (e.data.type === 'cinesrc:timeupdate') {
+            cinesrcAt = e.data.currentTime;
+            cinesrcClock = e.source;
+        }
         if (e.data.type === 'cinesrc:play' && heldPause === frame.contentWindow) cinesrc(frame, 'pause');
     });
 
@@ -293,6 +302,7 @@
         const frame = modal && modal.querySelector('#pFrame iframe');
         if (!frame || modal.querySelector('#pSource').value !== 'cinesrc') return false;
         if (!isFull() && !document.activeElement.matches('.modal-player .frame')) return false;
+        if (cinesrcClock !== frame.contentWindow) return true;
         const step = dir === 'right' ? 15 : -15;
         cinesrcAt = Math.max(0, cinesrcAt + step);
         cinesrc(frame, 'seek', [cinesrcAt]);

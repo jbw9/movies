@@ -23,7 +23,7 @@
     border-radius: 14px;
 }
 .tv .btn.tv-focus, .tv .chip.tv-focus, .tv .segmented a.tv-focus, .tv .tv-keys button.tv-focus, .tv .tv-picker button.tv-focus,
-.tv .tv-app.tv-focus, .tv .cal-day.tv-focus {
+.tv .tv-app.tv-focus {
     outline: none;
     background: #fff;
     color: #0b0b10;
@@ -31,6 +31,10 @@
     transform: scale(1.06);
 }
 .tv .btn { transition: transform .15s var(--ease), background .15s, color .15s; }
+/* Filters are a label pill around a select: light up the whole pill, not just the select. */
+.tv .filter select.tv-focus { outline: none; }
+.tv .filter:has(select.tv-focus) { background: #fff; transform: scale(1.06); }
+.tv .filter:has(select.tv-focus) span, .tv .filter:has(select.tv-focus) select { color: #0b0b10; }
 .tv .card-art.tv-focus {
     outline: none;
     transform: scale(1.08);
@@ -137,6 +141,7 @@ html:not(.tv) .tv-rail { display: none; }
 
 /* Detail pages */
 .tv .detail-hero { padding-top: 120px; grid-template-columns: 330px 1fr; }
+.tv .detail-main { max-width: 1000px; }
 .tv .detail-title { font-size: 76px; }
 .tv .tagline { font-size: 24px; }
 .tv .overview { font-size: 24px; max-width: 1100px; }
@@ -152,15 +157,30 @@ html:not(.tv) .tv-rail { display: none; }
 .tv .ep-overview { font-size: 20px; }
 .tv .ep-still.tv-focus { outline-offset: 2px; }
 
-/* Lists, calendar, settings */
+/* Lists, settings */
 .tv .agenda-item { padding: 16px; font-size: 22px; }
 .tv .agenda-day h3 { font-size: 30px; }
 .tv .setting h3 { font-size: 26px; }
 .tv .setting p, .tv .panel-note { font-size: 20px; }
 .tv .panel h2 { font-size: 34px; }
-.tv .setting select { height: 58px; font-size: 22px; }
+.tv .setting select { height: 58px; font-size: 22px; width: 300px; }
 .tv .swatch { width: 52px; height: 52px; }
 .tv .toolbar { font-size: 20px; }
+.tv .toolbar .select, .tv .toolbar select, .tv .toolbar .switch { font-size: 20px; }
+.tv .toolbar .select { height: 52px; }
+.tv .count { font-size: 16px; padding: 2px 9px; }
+.tv .progress-wrap span { font-size: 20px; }
+.tv .progress-wrap .progress { height: 8px; }
+/* Backups are files: no downloads or file pickers on the TV, and sync covers it. */
+.tv [data-action="export"], .tv label:has([data-action="import"]), .tv a[href="#/settings#data"] { display: none; }
+/* The TV always opens the player on cinesrc (tv.js), so this setting does nothing here. */
+.tv .setting:has([data-setting="source"]) { display: none; }
+.tv .data-stats b { font-size: 36px; }
+.tv .data-stats span { font-size: 18px; }
+.tv .empty h3 { font-size: 34px; }
+.tv .empty p { font-size: 24px; max-width: 680px; }
+.tv .empty-ic { width: 110px; height: 110px; border-radius: 30px; }
+.tv .empty-ic .ic { width: 52px; height: 52px; }
 
 /* ---- popups ---- */
 .tv .modal { width: min(1440px, 100vw - 200px); }

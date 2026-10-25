@@ -289,7 +289,9 @@
             if (!b) return;
             let name = b.dataset.profile;
             if (!name) {
-                ui.closeModal();
+                // The TV keypad opens in place of this; closing first would wipe it out, since
+                // closeModal empties the modal root a moment later.
+                if (!isTV()) ui.closeModal();
                 name = ((await askName()) || '').trim().replace(/\s+/g, ' ').slice(0, 24);
                 if (!name) return;
                 const taken = names.find(n => n.toLowerCase() === name.toLowerCase());
@@ -346,12 +348,12 @@
     function panelHtml() {
         if (!profile) {
             return `<h2>Profile</h2>
-                <p class="panel-note">Pick a profile to keep My List, history and where you stopped the same on all your devices.</p>
+                <p class="panel-note">Pick a profile to keep My List, GOAT, history and where you stopped the same on all your devices.</p>
                 <div class="actions"><button class="btn btn-sm" data-sync="pick">Choose profile</button></div>`;
         }
         const when = lastSync ? lastSync.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
         return `<h2>Profile</h2>
-            <p class="panel-note">Watching as <b>${esc(profile)}</b>. My List, history, watched episodes and where you stopped
+            <p class="panel-note">Watching as <b>${esc(profile)}</b>. My List, GOAT, history, watched episodes and where you stopped
                 stay the same on every device using this profile.</p>
             <p class="panel-note${lastError ? ' sync-error' : ''}">${lastError ? 'Last sync failed: ' + esc(lastError) : running ? 'Syncing…' : when ? 'Last synced ' + when : ''}</p>
             <div class="actions">

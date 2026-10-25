@@ -349,7 +349,7 @@
 
                 <section class="panel" id="data">
                     <h2>Your data</h2>
-                    <p class="panel-note">Your list, history and watched episodes live in this browser only. Back them up to move to another device.</p>
+                    <p class="panel-note">With a profile picked, your list, GOAT, history and watched episodes sync to every device on that profile. A backup saves a copy as a file.</p>
                     <div class="data-stats">
                         <div><b>${H.watchlist().length}</b><span>in My List</span></div>
                         <div><b>${H.history().length}</b><span>in history</span></div>
