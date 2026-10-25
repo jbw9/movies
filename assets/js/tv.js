@@ -127,7 +127,7 @@
     // ---- embed player, driven by the remote ------------------------------------------------
     // Focus never goes inside the player's iframe: that cross-origin page would swallow every
     // remote key, Back included. The video is one focusable tile instead: OK pauses, OK twice
-    // toggles full screen, OK three times reloads it, left and right skip 10 seconds.
+    // toggles full screen, OK three times reloads it, left and right skip 15 seconds.
 
     // cinesrc and vidstuck take a subtitle language in their URL (both match the track's name).
     const SUBS = ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Off'];
@@ -149,7 +149,7 @@
                 if (old) delete old.dataset.tv;
                 tunePlayer(modal);
             });
-            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 10 seconds. Back goes to Home.`;
+            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 15 seconds. Back goes to Home.`;
             focusEl(modal.querySelector('#pFrame'));
             // Always start on cinesrc; "Try next source" is there when it has nothing.
             const source = modal.querySelector('#pSource');
@@ -219,6 +219,7 @@
         delete old.dataset.tv;
         delete old.dataset.resume;
         old.replaceWith(old.cloneNode());
+        osd('');
         ui.toast('Reloading the video', { icon: 'info' });
     }
 
@@ -256,6 +257,28 @@
     // seconds after a pause it didn't see come from its own controls, so a pause is held until
     // OK is pressed again.
     let heldPause = null, cinesrcAt = 0;
+
+    // Big icons over the video so the remote's pauses and skips show they went through.
+    const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+    const SKIP_ICON = dir => `<svg viewBox="0 0 24 24" fill="currentColor"${dir < 0 ? ' style="transform:scaleX(-1)"' : ''}><path d="M4 6.5v11a.8.8 0 0 0 1.2.7L13 13v4.5a.8.8 0 0 0 1.2.7l8.4-5.5a.8.8 0 0 0 0-1.4l-8.4-5.5A.8.8 0 0 0 13 6.5V11L5.2 5.8A.8.8 0 0 0 4 6.5z"/></svg>`;
+    let osdTimer = null;
+    function osd(html, ms) {
+        const frame = playerModal() && playerModal().querySelector('#pFrame');
+        if (!frame) return;
+        let el = frame.querySelector('.tv-osd');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'tv-osd';
+            frame.appendChild(el);
+        }
+        clearTimeout(osdTimer);
+        el.innerHTML = html ? `<div class="tv-osd-badge">${html}</div>` : '';
+        // A skip's badge fades back to the pause icon if the video is still paused.
+        if (ms) osdTimer = setTimeout(() => {
+            const iframe = frame.querySelector('iframe');
+            osd(iframe && heldPause === iframe.contentWindow ? PAUSE_ICON : '');
+        }, ms);
+    }
     const cinesrc = (frame, command, args) => frame.contentWindow.postMessage({ type: 'cinesrc:command', command, args }, '*');
     window.addEventListener('message', e => {
         const frame = document.querySelector('#modalRoot #pFrame iframe');
@@ -264,14 +287,16 @@
         if (e.data.type === 'cinesrc:play' && heldPause === frame.contentWindow) cinesrc(frame, 'pause');
     });
 
-    // Left and right on the video skip back and forward 10 seconds (cinesrc only).
+    // Left and right on the video skip back and forward 15 seconds (cinesrc only).
     function skip(dir) {
         const modal = playerModal();
         const frame = modal && modal.querySelector('#pFrame iframe');
         if (!frame || modal.querySelector('#pSource').value !== 'cinesrc') return false;
         if (!isFull() && !document.activeElement.matches('.modal-player .frame')) return false;
-        cinesrcAt = Math.max(0, cinesrcAt + (dir === 'right' ? 10 : -10));
+        const step = dir === 'right' ? 15 : -15;
+        cinesrcAt = Math.max(0, cinesrcAt + step);
         cinesrc(frame, 'seek', [cinesrcAt]);
+        osd(`${SKIP_ICON(step)}<span>${step > 0 ? '+' : '−'}15s</span>`, 900);
         return true;
     }
 
@@ -282,6 +307,7 @@
             const resume = heldPause === frame.contentWindow;
             heldPause = resume ? null : frame.contentWindow;
             cinesrc(frame, resume ? 'play' : 'pause');
+            osd(resume ? '' : PAUSE_ICON);
             return;
         }
         const paused = modal && modal.querySelector('#pFrame .tv-paused');
