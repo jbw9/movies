@@ -283,7 +283,7 @@
         ['film', '#/movies', 'movies', 'Movies'],
         ['tv', '#/tv', 'tv', 'Series'],
         ['bookmark', '#/list', 'list', 'My List'],
-        ['calendar', '#/calendar', 'calendar', 'Calendar'],
+        ['goat', '#/goat', 'goat', 'GOAT'],
         ['shuffle', '', 'surprise', 'Surprise me'],
         ['sliders', '#/settings', 'settings', 'Settings'],
     ];
@@ -295,7 +295,7 @@
     document.body.appendChild(rail);
 
     // The router already highlighted [data-nav] before this menu existed.
-    const ROUTE_NAV = { home: 'home', movies: 'movies', movie: 'movies', tv: 'tv', list: 'list', calendar: 'calendar', settings: 'settings', search: 'search' };
+    const ROUTE_NAV = { home: 'home', movies: 'movies', movie: 'movies', tv: 'tv', list: 'list', goat: 'goat', settings: 'settings', search: 'search' };
     const nav = ROUTE_NAV[document.body.dataset.route];
     rail.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === nav));
 

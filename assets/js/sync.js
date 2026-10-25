@@ -1,4 +1,4 @@
-// Sync: My List, history, watched episodes and where you stopped, shared by every device
+// Sync: My List, GOAT, history, watched episodes and where you stopped, shared by every device
 // that picked the same profile. One Supabase row per profile, talked to with plain fetch.
 // No sign-in: each device remembers the profile it picked. Each entry carries a timestamp
 // and removals leave a marker, so merging keeps the newest change per title instead of
@@ -8,7 +8,7 @@
     const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
     const { ls, esc, ui, library } = SM;
     const PROFILE = 'sm-profile', BASE = 'sm-sync-base', PROGRESS = 'sm-progress';
-    const SECTIONS = ['watchlist', 'history', 'watched', 'progress'];
+    const SECTIONS = ['watchlist', 'goat', 'history', 'watched', 'progress'];
     const KEEP_REMOVALS = 60 * 864e5;
     const isTV = () => document.documentElement.classList.contains('tv');
 
@@ -35,8 +35,9 @@
 
     // What this device has right now, with each entry's own time where it has one.
     function current() {
-        const out = { watchlist: {}, history: {}, watched: {}, progress: {} };
+        const out = { watchlist: {}, goat: {}, history: {}, watched: {}, progress: {} };
         library.watchlist().forEach(item => { out.watchlist[keyOf(item)] = { own: item.addedAt, item }; });
+        library.goat().forEach(item => { out.goat[keyOf(item)] = { own: item.addedAt, item }; });
         library.history().forEach(item => { out.history[keyOf(item)] = { own: item.updatedAt, item }; });
         library.watchedSet().forEach(k => { out.watched[k] = {}; });
         Object.entries(ls.get(PROGRESS, {}) || {}).forEach(([k, p]) => { out.progress[k] = { own: p.at, item: p }; });
@@ -78,14 +79,16 @@
 
     // Writes the merged state into the keys the rest of Heartive reads. Returns true if anything changed.
     function apply(doc) {
-        const before = JSON.stringify([library.watchlist(), library.history(), [...library.watchedSet()].sort(), ls.get(PROGRESS, {})]);
-        const watchlist = alive(doc.watchlist).map(([, e]) => e.item).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        const before = JSON.stringify([library.watchlist(), library.goat(), library.history(), [...library.watchedSet()].sort(), ls.get(PROGRESS, {})]);
+        const byAdded = sec => alive(sec).map(([, e]) => e.item).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        const watchlist = byAdded(doc.watchlist), goat = byAdded(doc.goat);
         const history = alive(doc.history).map(([, e]) => e.item).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 60);
         const watched = alive(doc.watched).map(([k]) => k);
         const progress = {};
         alive(doc.progress).sort((a, b) => b[1].at - a[1].at).slice(0, 300).forEach(([k, e]) => { progress[k] = e.item; });
-        if (JSON.stringify([watchlist, history, [...watched].sort(), progress]) === before) return false;
+        if (JSON.stringify([watchlist, goat, history, [...watched].sort(), progress]) === before) return false;
         ls.set('sm-watchlist', watchlist);
+        ls.set('sm-goat', goat);
         ls.set('sm-history', history);
         ls.set('watched', watched);
         ls.set(PROGRESS, progress);
@@ -152,7 +155,7 @@
         if (profile && name !== profile) {
             applying = true;
             try {
-                ['sm-watchlist', 'sm-history', 'watched', PROGRESS].forEach(k => ls.remove(k));
+                ['sm-watchlist', 'sm-goat', 'sm-history', 'watched', PROGRESS].forEach(k => ls.remove(k));
                 SM.emit('library', { kind: 'sync' });
             } finally {
                 applying = false;
