@@ -299,27 +299,13 @@
                     </div>
                     ${a}
                 </div>
-                `+x.footer(),r.querySelector("[data-sort]")),i=(s&&s.addEventListener("change",()=>location.hash=p({sort:s.value})),r.querySelector("[data-hide]"));i&&i.addEventListener("change",()=>location.hash=p({hide:i.checked?"1":"0"}));var n=r.querySelector("#agenda"),n=(n&&h(n,o),r.querySelector('[data-action="refresh-upcoming"]')?.addEventListener("click",()=>h(r.querySelector("#agenda"),o,!0)),r.querySelector('[data-action="clear-history"]'));n&&n.addEventListener("click",()=>{let e=H.history();H.clear("history"),x.toast("History cleared",{icon:"trash",action:{label:"Undo",run:()=>{M.ls.set("sm-history",e),M.emit("library",{kind:"history"})}}})})}};a(),o.cleanup(M.on("library",()=>setTimeout(a,0)))},news:async function(t,s){M.setTitle("News"),t.innerHTML=`<div class="container page"><header class="page-head"><div><p class="eyebrow">Headlines</p><h1>News</h1></div></header>${`
-        <div class="news-lead skeleton"><div class="news-lead-img"></div><div>${c("70px","90%","75%","95%","40%")}</div></div>
-        <div class="news-grid">${Array.from({length:6},()=>'<div class="news-card skeleton"><span class="news-img"></span><div class="sk-line" style="width:40%;height:10px"></div><div class="sk-line"></div><div class="sk-line short"></div></div>').join("")}</div>`}</div>`;let e;try{e=await A.news()}catch(e){return void(s.alive()&&(t.innerHTML=`<div class="container">${x.errorState("The news feed didn't load.")}</div>`))}if(s.alive()){s=(e.articles||[]).filter(e=>e.title&&"[Removed]"!==e.title&&e.urlToImage).sort((e,a)=>new Date(a.publishedAt)-new Date(e.publishedAt));let a=e=>(e.source?.name||"News").split(".")[0];var[s,...i]=s;t.innerHTML=`
+                `+x.footer(),r.querySelector("[data-sort]")),i=(s&&s.addEventListener("change",()=>location.hash=p({sort:s.value})),r.querySelector("[data-hide]"));i&&i.addEventListener("change",()=>location.hash=p({hide:i.checked?"1":"0"}));var n=r.querySelector("#agenda"),n=(n&&h(n,o),r.querySelector('[data-action="refresh-upcoming"]')?.addEventListener("click",()=>h(r.querySelector("#agenda"),o,!0)),r.querySelector('[data-action="clear-history"]'));n&&n.addEventListener("click",()=>{let e=H.history();H.clear("history"),x.toast("History cleared",{icon:"trash",action:{label:"Undo",run:()=>{M.ls.set("sm-history",e),M.emit("library",{kind:"history"})}}})})}};a(),o.cleanup(M.on("library",()=>setTimeout(a,0)))},history:function(t,s){let a=()=>{if(s.alive()){M.setTitle("History");let e=[...H.history()].sort((e,a)=>(a.updatedAt||0)-(e.updatedAt||0));t.innerHTML=`
             <div class="container page">
-                <header class="page-head"><div><p class="eyebrow">Headlines</p><h1>News</h1></div></header>
-                ${s?`
-                <a class="news-lead" href="${T(s.url)}" target="_blank" rel="noopener noreferrer">
-                    <img src="${T(s.urlToImage)}" alt="" onerror="this.src='previews/no-episode.png'">
-                    <div><span class="pill">${T(a(s))}</span><h2>${T(s.title)}</h2><p>${T(s.description||"")}</p><span class="muted">${M.timeAgo(new Date(s.publishedAt).getTime())}</span></div>
-                </a>`:x.empty("news","No news right now","Check back later.")}
-                <div class="news-grid">
-                    ${i.map(e=>`
-                    <a class="news-card" href="${T(e.url)}" target="_blank" rel="noopener noreferrer">
-                        <span class="news-img"><img loading="lazy" src="${T(e.urlToImage)}" alt="" onerror="this.src='previews/no-episode.png'"></span>
-                        <span class="news-src">${T(a(e))} · ${M.timeAgo(new Date(e.publishedAt).getTime())}</span>
-                        <h3>${T(e.title)}</h3>
-                        <p>${T(e.description||"")}</p>
-                    </a>`).join("")}
-                </div>
+                <header class="page-head"><div><p class="eyebrow">Last watched first</p><h1>History</h1></div></header>
+                ${e.length?`<div class="toolbar"><button class="btn btn-ghost btn-sm" data-action="clear-history">${j("trash")} Clear history</button></div>
+                <div class="grid grid-wide">${e.map(e=>x.card({...e,backdrop:e.backdrop||e.still},{wide:!0,remove:!0,sub:("tv"===e.type&&e.season?`S${e.season} · E${e.episode} · `:"Movie · ")+M.timeAgo(e.updatedAt)})).join("")}</div>`:x.empty("history","Nothing watched yet","Anything you play shows up here so you can jump back in.",'<a class="btn" href="#/">Find something</a>')}
             </div>
-            `+x.footer()}},settings:function t(s,i){M.setTitle("Settings");var e=M.player.sources(),a=(t,e)=>`<select data-setting="${t}">${e.map(([e,a])=>`<option value="${T(e)}"${String(E.get(t))===e?" selected":""}>${T(a)}</option>`).join("")}</select>`,n=e=>`<label class="switch"><input type="checkbox" data-toggle="${e}"${E.bool(e)?" checked":""}><span></span></label>`,r=(e,a,t)=>`<div class="setting"><div><h3>${e}</h3>${a?`<p>${a}</p>`:""}</div>${t}</div>`;s.innerHTML=`
+            `+x.footer(),t.querySelector('[data-action="clear-history"]')?.addEventListener("click",()=>{let e=H.history();H.clear("history"),x.toast("History cleared",{icon:"trash",action:{label:"Undo",run:()=>{M.ls.set("sm-history",e),M.emit("library",{kind:"history"})}}})})}};a(),s.cleanup(M.on("library",()=>setTimeout(a,0)))},settings:function t(s,i){M.setTitle("Settings");var e=M.player.sources(),a=(t,e)=>`<select data-setting="${t}">${e.map(([e,a])=>`<option value="${T(e)}"${String(E.get(t))===e?" selected":""}>${T(a)}</option>`).join("")}</select>`,n=e=>`<label class="switch"><input type="checkbox" data-toggle="${e}"${E.bool(e)?" checked":""}><span></span></label>`,r=(e,a,t)=>`<div class="setting"><div><h3>${e}</h3>${a?`<p>${a}</p>`:""}</div>${t}</div>`;s.innerHTML=`
             <div class="container page settings">
                 <header class="page-head"><div><p class="eyebrow">Preferences</p><h1>Settings</h1></div></header>
 
