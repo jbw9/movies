@@ -129,7 +129,7 @@
     // remote key, Back included. The video is one focusable tile instead: OK pauses, OK twice
     // toggles full screen, OK three times reloads it.
 
-    // Only vidstuck takes a subtitle language in its URL (it matches the track's name).
+    // cinesrc and vidstuck take a subtitle language in their URL (both match the track's name).
     const SUBS = ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Off'];
     const subtitle = () => SM.ls.get('heartive-tv-subs', 'English');
     const playerModal = () => document.querySelector('#modalRoot .modal-player');
@@ -151,26 +151,33 @@
             });
             modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload (no sound, or a popup stuck on it). Back leaves full screen, then closes the player.`;
             focusEl(modal.querySelector('#pFrame'));
-            // Always start on vidstuck; "Try next source" is there when it has nothing.
+            // Always start on cinesrc; "Try next source" is there when it has nothing.
             const source = modal.querySelector('#pSource');
-            if (source.value !== 'vidstuck' && source.querySelector('option[value="vidstuck"]')) {
-                source.value = 'vidstuck';
+            if (source.value !== 'cinesrc' && source.querySelector('option[value="cinesrc"]')) {
+                source.value = 'cinesrc';
                 source.dispatchEvent(new Event('change'));
             }
         }
         const iframe = modal.querySelector('#pFrame iframe');
-        const vidstuck = modal.querySelector('#pSource').value === 'vidstuck';
-        modal.querySelector('.tv-subs').style.display = vidstuck ? '' : 'none';
-        if (!iframe || iframe.dataset.tv || !vidstuck) return;
+        const source = modal.querySelector('#pSource').value;
+        const tuned = source === 'cinesrc' || source === 'vidstuck';
+        modal.querySelector('.tv-subs').style.display = tuned ? '' : 'none';
+        if (!iframe || iframe.dataset.tv || !tuned) return;
         const url = new URL(iframe.dataset.src || iframe.src);
-        // vidstuck already autoplays with sound; autoplay=true in the URL would start it muted.
-        url.searchParams.delete('autoplay');
-        if (subtitle() === 'Off') url.searchParams.delete('subtitle');
-        else url.searchParams.set('subtitle', subtitle());
+        if (source === 'cinesrc') {
+            url.searchParams.set('subtitles', subtitle() === 'Off' ? 'off' : 'auto');
+            if (subtitle() === 'Off') url.searchParams.delete('subtitlelang');
+            else url.searchParams.set('subtitlelang', subtitle());
+        } else {
+            // vidstuck already autoplays with sound; autoplay=true in the URL would start it muted.
+            url.searchParams.delete('autoplay');
+            if (subtitle() === 'Off') url.searchParams.delete('subtitle');
+            else url.searchParams.set('subtitle', subtitle());
+        }
         // A fresh iframe, so its load guard starts counting from zero.
         const fresh = iframe.cloneNode();
         // Start where this profile left off (sync.js).
-        fresh.src = fresh.dataset.src = SM.sync ? SM.sync.withResume(url.href, 'vidstuck') : url.href;
+        fresh.src = fresh.dataset.src = SM.sync ? SM.sync.withResume(url.href, source) : url.href;
         fresh.dataset.n = '0';
         fresh.dataset.tv = '1';
         fresh.dataset.resume = '1';
@@ -178,7 +185,7 @@
         // vidstuck refuses to play in any sandboxed frame (it probes document.domain). Without the
         // sandbox it still can't open popups or redirect the app: focus, and with it user
         // activation, never goes inside the frame.
-        fresh.removeAttribute('sandbox');
+        if (source === 'vidstuck') fresh.removeAttribute('sandbox');
         iframe.replaceWith(fresh);
     }
 
@@ -223,7 +230,7 @@
         const frame = modal && modal.querySelector('#pFrame iframe');
         if (!frame) return;
         if (!SM.sync || !SM.sync.canResume(modal.querySelector('#pSource').value)) {
-            return ui.toast("This source can't pause from the remote. Try vidstuck.", { icon: 'info' });
+            return ui.toast("This source can't pause from the remote. Try cinesrc.", { icon: 'info' });
         }
         pausedFrame = frame.cloneNode();
         delete pausedFrame.dataset.tv;

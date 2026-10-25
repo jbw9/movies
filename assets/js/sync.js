@@ -237,6 +237,8 @@
         const url = new URL(src), at = resumeAt(k);
         if (at) url.searchParams.set(param, at);
         else url.searchParams.delete(param);
+        // Otherwise cinesrc asks "Resume watching?" inside the video, which a TV remote can't answer.
+        if (source === 'cinesrc') url.searchParams.set('continueprompt', 'false');
         return url.href;
     }
 
