@@ -127,7 +127,7 @@
     // ---- embed player, driven by the remote ------------------------------------------------
     // Focus never goes inside the player's iframe: that cross-origin page would swallow every
     // remote key, Back included. The video is one focusable tile instead: OK pauses, OK twice
-    // toggles full screen, OK three times reloads it.
+    // toggles full screen, OK three times reloads it, left and right skip 10 seconds.
 
     // cinesrc and vidstuck take a subtitle language in their URL (both match the track's name).
     const SUBS = ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Off'];
@@ -149,7 +149,7 @@
                 if (old) delete old.dataset.tv;
                 tunePlayer(modal);
             });
-            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload (no sound, or a popup stuck on it). Back leaves full screen, then closes the player.`;
+            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 10 seconds. Back goes to Home.`;
             focusEl(modal.querySelector('#pFrame'));
             // Always start on cinesrc; "Try next source" is there when it has nothing.
             const source = modal.querySelector('#pSource');
@@ -222,7 +222,7 @@
         ui.toast('Reloading the video', { icon: 'info' });
     }
 
-    // The player can't be told to pause, so pausing unloads it and resuming reloads it at the
+    // Other players can't be told to pause, so pausing unloads them and resuming reloads at the
     // spot it reported last (sync.js). Only for players that can start at a given second.
     let pausedFrame = null;
     function pausePlayer() {
@@ -252,8 +252,39 @@
     // Switching source or closing drops a pause; the old player is gone either way.
     SM.on('modal-close', () => { pausedFrame = null; });
 
+    // cinesrc takes play/pause commands, so it pauses in place. It starts itself again a few
+    // seconds after a pause it didn't see come from its own controls, so a pause is held until
+    // OK is pressed again.
+    let heldPause = null, cinesrcAt = 0;
+    const cinesrc = (frame, command, args) => frame.contentWindow.postMessage({ type: 'cinesrc:command', command, args }, '*');
+    window.addEventListener('message', e => {
+        const frame = document.querySelector('#modalRoot #pFrame iframe');
+        if (!frame || e.source !== frame.contentWindow || !e.data) return;
+        if (e.data.type === 'cinesrc:timeupdate') cinesrcAt = e.data.currentTime;
+        if (e.data.type === 'cinesrc:play' && heldPause === frame.contentWindow) cinesrc(frame, 'pause');
+    });
+
+    // Left and right on the video skip back and forward 10 seconds (cinesrc only).
+    function skip(dir) {
+        const modal = playerModal();
+        const frame = modal && modal.querySelector('#pFrame iframe');
+        if (!frame || modal.querySelector('#pSource').value !== 'cinesrc') return false;
+        if (!isFull() && !document.activeElement.matches('.modal-player .frame')) return false;
+        cinesrcAt = Math.max(0, cinesrcAt + (dir === 'right' ? 10 : -10));
+        cinesrc(frame, 'seek', [cinesrcAt]);
+        return true;
+    }
+
     function togglePause() {
-        const paused = playerModal() && playerModal().querySelector('#pFrame .tv-paused');
+        const modal = playerModal();
+        const frame = modal && modal.querySelector('#pFrame iframe');
+        if (frame && modal.querySelector('#pSource').value === 'cinesrc') {
+            const resume = heldPause === frame.contentWindow;
+            heldPause = resume ? null : frame.contentWindow;
+            cinesrc(frame, resume ? 'play' : 'pause');
+            return;
+        }
+        const paused = modal && modal.querySelector('#pFrame .tv-paused');
         if (paused) resumePlayer();
         else pausePlayer();
     }
@@ -285,13 +316,15 @@
         ['bookmark', '#/list', 'list', 'My List'],
         ['goat', '#/goat', 'goat', 'GOAT'],
         ['shuffle', '', 'surprise', 'Surprise me'],
+        ['play', '', 'southpark', 'South Park'],
         ['sliders', '#/settings', 'settings', 'Settings'],
     ];
     rail.innerHTML = `<span class="tv-brand"><img src="previews/branding/favicon-128x128.png" alt=""></span>` +
         MENU.map(([ic, href, nav, label]) => href
             ? `<a href="${href}" data-nav="${nav}">${icon(ic)}<span class="tv-label">${label}</span></a>`
-            : `<button type="button" data-tv-surprise>${icon(ic)}<span class="tv-label">${label}</span></button>`).join('');
-    rail.querySelector('[data-tv-surprise]').addEventListener('click', () => SM.surprise());
+            : `<button type="button" data-tv-action="${nav}">${icon(ic)}<span class="tv-label">${label}</span></button>`).join('');
+    rail.querySelector('[data-tv-action="surprise"]').addEventListener('click', () => SM.surprise());
+    rail.querySelector('[data-tv-action="southpark"]').addEventListener('click', () => SM.southPark());
     document.body.appendChild(rail);
 
     // The router already highlighted [data-nav] before this menu existed.
@@ -613,21 +646,17 @@
 
     // ---- remote keys ---------------------------------------------------------------------------
 
+    // Back always heads home: the player or any page goes to Heartive's home, and Heartive's
+    // home goes to the launcher. Pop-ups and dropdowns just close.
     function back() {
         if (closePicker()) return;
-        if (isFull()) return setFull(false);
-        if (document.querySelector('#modalRoot .modal')) return ui.closeModal();
-        const cur = document.activeElement;
-        if (document.body.dataset.route !== 'home') {
-            if (rail.contains(cur) || history.length < 2) location.hash = '#/';
-            else history.back();
-            return;
+        const modal = document.querySelector('#modalRoot .modal');
+        if (modal) {
+            ui.closeModal();
+            if (!modal.classList.contains('modal-player')) return;
         }
-        // Home: rows -> hero -> menu -> back to the launcher.
-        if (rail.contains(cur)) return exitApp();
-        const play = view.querySelector('.hero-slide.on [data-play]');
-        if (usable(play) && !play.closest('.hero').contains(cur)) return focusEl(play);
-        enterZone(rail);
+        if (document.body.dataset.route !== 'home') location.hash = '#/';
+        else if (!modal) exitApp();
     }
 
     function activate() {
@@ -646,6 +675,7 @@
         e.preventDefault();
         e.stopImmediatePropagation();
         // Full screen shows only the video: OK twice or Back leaves it.
+        if ((k === 'left' || k === 'right') && skip(k)) return;
         if (isFull() && k !== 'back') return k === 'ok' && okOnVideo();
         if (k === 'back') back();
         else if (k === 'ok') activate();
