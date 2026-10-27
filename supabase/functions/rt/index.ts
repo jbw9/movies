@@ -9,6 +9,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const MDBLIST = Deno.env.get('MDBLIST_KEY');
+if (!MDBLIST) console.error('MDBLIST_KEY is not set');
 const DAY = 864e5;
 const cors = {
     'Access-Control-Allow-Origin': '*',
@@ -25,7 +26,10 @@ async function mdblist(type: string, ids: number[]) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+        console.error('MDBList', r.status, await r.text());
+        return null;
+    }
     const found = new Map<number, { score: number | null; url: string | null }>();
     for (const item of await r.json()) {
         const rt = (item.ratings || []).find((x: { source: string }) => x.source === 'tomatoes');
