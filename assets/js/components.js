@@ -1,10 +1,10 @@
-(c=>{let{esc:p,icon:m,library:u}=c,a=new Map,h=e=>(e&&a.set(c.keyOf(e.type,e.id),e),e),v=e=>`#/${e.type}/`+e.id,f=e=>e?`<span class="rating">${m("star")}${Number(e).toFixed(1)}</span>`:"",b=e=>"tv"===e?"Series":"Movie",g='<i class="badge-break"></i><span class="badge badge-canceled" title="This show was cancelled">Canceled</span>',$=e=>e?`<span class="badge-new" title="New: S${e.season} · E${e.episode}">New episode</span>`:"",t=(e=8,a)=>Array.from({length:e},()=>`<div class="card skeleton${a?" card-wide":""}"><div class="card-art"></div><div class="sk-line"></div><div class="sk-line short"></div></div>`).join(""),r=(e,a,t,r="")=>`
+(c=>{let{esc:p,icon:m,library:u}=c,a=new Map,h=e=>(e&&a.set(c.keyOf(e.type,e.id),e),e),v=e=>"ep"===e.type?`#/tv/${e.show}/season/${e.season}`:`#/${e.type}/`+e.id,f=e=>e?`<span class="rating">${m("star")}${Number(e).toFixed(1)}</span>`:"",b=e=>"tv"===e?"Series":"Movie",g='<i class="badge-break"></i><span class="badge badge-canceled" title="This show was cancelled">Canceled</span>',$=e=>e?`<span class="badge-new" title="New: S${e.season} · E${e.episode}">New episode</span>`:"",t=(e=8,a)=>Array.from({length:e},()=>`<div class="card skeleton${a?" card-wide":""}"><div class="card-art"></div><div class="sk-line"></div><div class="sk-line short"></div></div>`).join(""),r=(e,a,t,r="")=>`
         <div class="empty">
             <div class="empty-ic">${m(e)}</div>
             <h3>${p(a)}</h3>
             <p>${t}</p>
             ${r}
-        </div>`,s=null;function i(e,a=""){o(!0),s=document.activeElement;let t=document.getElementById("modalRoot");t.innerHTML=`<div class="modal-backdrop" data-close></div><div class="modal ${a}" role="dialog" aria-modal="true">${e}</div>`,document.body.classList.add("locked"),requestAnimationFrame(()=>t.classList.add("open"));a=t.querySelector(".modal button, .modal [href], .modal select");return a&&a.focus(),t.querySelector(".modal")}function o(e){let a=document.getElementById("modalRoot");var t;a.innerHTML&&(c.emit("modal-close"),a.classList.remove("open"),document.body.classList.remove("locked"),t=()=>{a.innerHTML=""},e?t():setTimeout(t,180),s)&&s.focus&&s.focus({preventScroll:!0})}c.ui={canceledBadge:g,fitLogo:function(t,r="hero"){var s=t.naturalWidth,i=t.naturalHeight;if(s&&i){var o=window.innerWidth<760,o={hero:o?{area:15e3,maxW:Math.min(300,.8*window.innerWidth),maxH:90,minH:34}:{area:42e3,maxW:500,maxH:140,minH:56},detail:o?{area:14e3,maxW:Math.min(300,.85*window.innerWidth),maxH:90,minH:34}:{area:36e3,maxW:460,maxH:130,minH:50}}[r],r=s/i;let e=Math.sqrt(o.area/r),a=(e=Math.max(o.minH,Math.min(o.maxH,e)))*r;a>o.maxW&&(a=o.maxW,e=a/r),t.style.width=Math.round(a)+"px",t.style.height=Math.round(e)+"px"}},newBadge:$,remember:h,lookup:e=>a.get(e),href:v,rating:f,typeLabel:b,card:function(e,a={}){if(!e)return"";h(e);var t=c.keyOf(e.type,e.id),r=u.inList(e.type,e.id),s="movie"===e.type&&u.isWatched("m-"+e.id),i=u.historyFor(e.type,e.id),o=e.date&&c.inFuture(e.date),n=a.sub??[e.year,b(e.type)].filter(Boolean).join(" · "),l="tv"===e.type&&c.tracker?c.tracker.newEpisode(e.id):null,d=a.href||v(e);return`
+        </div>`,s=null;function i(e,a=""){o(!0),s=document.activeElement;let t=document.getElementById("modalRoot");t.innerHTML=`<div class="modal-backdrop" data-close></div><div class="modal ${a}" role="dialog" aria-modal="true">${e}</div>`,document.body.classList.add("locked"),requestAnimationFrame(()=>t.classList.add("open"));a=t.querySelector(".modal button, .modal [href], .modal select");return a&&a.focus(),t.querySelector(".modal")}function o(e){let a=document.getElementById("modalRoot");var t;a.innerHTML&&(c.emit("modal-close"),a.classList.remove("open"),document.body.classList.remove("locked"),t=()=>{a.innerHTML=""},e?t():setTimeout(t,180),s)&&s.focus&&s.focus({preventScroll:!0})}c.ui={canceledBadge:g,fitLogo:function(t,r="hero"){var s=t.naturalWidth,i=t.naturalHeight;if(s&&i){var o=window.innerWidth<760,o={hero:o?{area:15e3,maxW:Math.min(300,.8*window.innerWidth),maxH:90,minH:34}:{area:42e3,maxW:500,maxH:140,minH:56},detail:o?{area:14e3,maxW:Math.min(300,.85*window.innerWidth),maxH:90,minH:34}:{area:36e3,maxW:460,maxH:130,minH:50}}[r],r=s/i;let e=Math.sqrt(o.area/r),a=(e=Math.max(o.minH,Math.min(o.maxH,e)))*r;a>o.maxW&&(a=o.maxW,e=a/r),t.style.width=Math.round(a)+"px",t.style.height=Math.round(e)+"px"}},newBadge:$,remember:h,lookup:e=>a.get(e),epItem:(e,a)=>h({type:"ep",id:a.id,show:Number(e.id),title:e.title,season:a.season_number,episode:a.episode_number,name:a.name||"",year:c.year(a.air_date),poster:e.poster,backdrop:a.still_path?c.api.img(a.still_path,"w780"):e.backdrop,rating:a.vote_average||0}),href:v,rating:f,typeLabel:b,card:function(e,a={}){if(!e)return"";h(e);var t=c.keyOf(e.type,e.id),r=u.inList(e.type,e.id),s="movie"===e.type&&u.isWatched("m-"+e.id),i=!a.removeLog&&u.historyFor(e.type,e.id),o=e.date&&c.inFuture(e.date),n=a.sub??("ep"===e.type?`S${e.season} · E${e.episode}`+(e.name?" — "+e.name:""):[e.year,b(e.type)].filter(Boolean).join(" · ")),l="tv"===e.type&&c.tracker?c.tracker.newEpisode(e.id):null,d=a.href||v(e);return`
         <article class="card${a.wide?" card-wide":""}" data-key="${t}">
             <a class="card-art" href="${d}" aria-label="${p(e.title)}">
                 ${$(l)}
@@ -24,7 +24,7 @@
             <button class="card-wl${r?" on":""}" data-wl="${t}" aria-pressed="${r}" title="${r?"Remove from My List":"Add to My List"}">
                 ${m(r?"check":"plus")}
             </button>
-            ${a.remove?`<button class="card-x" data-remove-history="${t}" title="Remove from history">${m("x")}</button>`:""}
+            ${a.remove?`<button class="card-x" ${a.removeLog?`data-remove-log="${p(a.removeLog)}"`:`data-remove-history="${t}"`} title="Remove from history">${m("x")}</button>`:""}
             <div class="card-meta">
                 <a class="card-title" href="${d}">${p(e.title)}</a>
                 <div class="card-sub">${p(n)}</div>
@@ -51,22 +51,5 @@
                 <div class="frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(e)}?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="Trailer"></iframe></div>
             </div>`,"modal-video")},pickTrailer:e=>{e=(e?.results||[]).filter(e=>"YouTube"===e.site);return e.find(e=>"Trailer"===e.type&&e.official&&/official|main/i.test(e.name))||e.find(e=>"Trailer"===e.type&&e.official)||e.find(e=>"Trailer"===e.type)||e.find(e=>"Teaser"===e.type)||null},footer:()=>`
         <footer class="footer">
-            <div class="footer-brand"><img src="previews/branding/favicon-128x128.png" alt=""> Heartive <span>a static html based movie site :D</span></div>
-            <p class="old-site">The original Heartive design is still available at <a href="./old">/old</a>.</p>
-            <p>Metadata and images from <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
-            <p>All content is provided by non-affiliated third parties. If you are a company that is worried about unauthorized distribution of your copyrighted material and desire to prevent it, targeting aggregators (such as Heartive) will not stop distribution. Please send DMCAs to Providers that actually distribute your copyrighted material in order to rightfully protect your content.</p>
-            <p class="providers">Providers to contact:
-                <a target="_blank" rel="noopener" href="https://vidfast.pro">vidfast.pro</a>,
-                <a target="_blank" rel="noopener" href="https://videasy.net">videasy.net</a>,
-                <a target="_blank" rel="noopener" href="https://www.fmovies.gd">fmovies.gd</a>,
-                <a target="_blank" rel="noopener" href="https://vidlink.pro">vidlink.pro</a>,
-                <a target="_blank" rel="noopener" href="https://vidzee.wtf">vidzee.wtf</a>,
-                <a target="_blank" rel="noopener" href="https://vixsrc.to">vixsrc.to</a>,
-                <a target="_blank" rel="noopener" href="https://superembed.stream/contact.html">superembed.stream</a>,
-                <a target="_blank" rel="noopener" href="https://vidnest.fun">vidnest.fun</a>,
-                <a target="_blank" rel="noopener" href="https://vidsrc.cc">vidsrc.cc</a>,
-                <a target="_blank" rel="noopener" href="https://cinesrc.st">cinesrc.st</a>,
-                <a target="_blank" rel="noopener" href="https://thisiscinema.pages.dev">aeon-watch</a>,
-                <a target="_blank" rel="noopener" href="https://primewire.mov/contact">primewire.mov</a>
-            </p>
+            <div class="footer-brand"><img src="previews/icon.svg" alt=""> Movies <span>credits to <a href="https://heartivelovestv.pages.dev/" target="_blank" rel="noopener">heartivelovestv.pages.dev</a></span></div>
         </footer>`}})(window.SM);

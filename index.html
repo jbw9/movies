@@ -5,20 +5,19 @@
     <meta name="robots" content="index, follow">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0b0b10">
-    <title>Heartive</title>
+    <title>Movies</title>
     <meta name="description" content="For shows and movies idk man i was bored">
 
-    <link rel="icon" href="previews/branding/favicon-128x128.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="previews/branding/favicon-180x180.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="previews/branding/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="previews/branding/favicon-16x16.png">
+    <link rel="icon" type="image/svg+xml" href="previews/icon.svg">
     <link rel="manifest" href="manifest.json">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <link rel="preconnect" href="https://api.themoviedb.org">
     <link rel="preconnect" href="https://image.tmdb.org">
+    <link rel="preconnect" href="https://cinesrc.st">
+    <link rel="preconnect" href="https://jbvkjvdthuzofvmhwctv.supabase.co">
 
     <link rel="stylesheet" href="assets/css/app.css">
     <link rel="stylesheet" href="assets/css/sync.css">
@@ -28,9 +27,9 @@
     <a class="skip" href="#view">Skip to content</a>
 
     <header class="topbar" id="topbar">
-        <a class="brand" href="#/" aria-label="Heartive home">
-            <img src="previews/branding/favicon-128x128.png" alt="" draggable="false">
-            <span>Heartive</span>
+        <a class="brand" href="#/" aria-label="Movies home">
+            <img src="previews/icon.svg" alt="" draggable="false">
+            <span>Movies</span>
         </a>
         <nav class="nav" aria-label="Main">
             <a href="#/" data-nav="home">Home</a>
@@ -58,7 +57,7 @@
             </div>
             <button class="icon-btn desktop-only" data-menu="southpark" title="South Park" aria-label="South Park"><span data-icon="play"></span></button>
             <button class="icon-btn desktop-only" id="surpriseBtn" title="Surprise me" aria-label="Surprise me"><span data-icon="shuffle"></span></button>
-            <a class="icon-btn desktop-only" href="#/settings" data-nav="settings" title="Settings" aria-label="Settings"><span data-icon="sliders"></span></a>
+            <a class="icon-btn" href="#/settings" data-nav="settings" title="Account and settings" aria-label="Account and settings" data-avatar><span data-icon="user"></span></a>
         </div>
     </header>
 
@@ -82,6 +81,7 @@
     <script src="assets/js/components.js"></script>
     <script src="assets/js/player.js"></script>
     <script src="assets/js/pages.js"></script>
+    <script src="assets/js/ratings.js"></script>
     <script src="assets/js/app.js"></script>
     <script src="assets/js/sync.js"></script>
     <script src="assets/js/southpark.js"></script>

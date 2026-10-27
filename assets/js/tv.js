@@ -3,9 +3,9 @@
 // Desktop and phone never get the .tv class, so nothing here touches them.
 (SM => {
     const params = new URLSearchParams(location.search);
-    if (params.has('tv')) SM.ls.set('heartive-tv', params.get('tv') === '0' ? 'no' : 'yes');
+    if (params.has('tv')) SM.ls.set('movies-tv', params.get('tv') === '0' ? 'no' : 'yes');
     const isTizen = typeof window.tizen !== 'undefined' && !!window.tizen.application;
-    if (!isTizen && SM.ls.get('heartive-tv', 'no') !== 'yes') return;
+    if (!isTizen && SM.ls.get('movies-tv', 'no') !== 'yes') return;
 
     const { esc, icon, ui, library, api } = SM;
     const LAUNCHER_ID = 'SkrFlap001.SeekerFlap';
@@ -131,7 +131,7 @@
 
     // cinesrc and vidstuck take a subtitle language in their URL (both match the track's name).
     const SUBS = ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Off'];
-    const subtitle = () => SM.ls.get('heartive-tv-subs', 'English');
+    const subtitle = () => SM.ls.get('movies-tv-subs', 'English');
     const playerModal = () => document.querySelector('#modalRoot .modal-player');
     const isFull = () => !!document.querySelector('#modalRoot .modal-player.tv-full');
 
@@ -144,19 +144,13 @@
                 <select id="pSubs" aria-label="Subtitles">${SUBS.map(s => `<option${s === subtitle() ? ' selected' : ''}>${s}</option>`).join('')}</select>`;
             modal.querySelector('.player-bar .source-pick').after(subs);
             subs.querySelector('select').addEventListener('change', e => {
-                SM.ls.set('heartive-tv-subs', e.target.value);
+                SM.ls.set('movies-tv-subs', e.target.value);
                 const old = modal.querySelector('#pFrame iframe');
                 if (old) delete old.dataset.tv;
                 tunePlayer(modal);
             });
             modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 15 seconds. Back goes to Home.`;
             focusEl(modal.querySelector('#pFrame'));
-            // Always start on cinesrc; "Try next source" is there when it has nothing.
-            const source = modal.querySelector('#pSource');
-            if (source.value !== 'cinesrc' && source.querySelector('option[value="cinesrc"]')) {
-                source.value = 'cinesrc';
-                source.dispatchEvent(new Event('change'));
-            }
         }
         const iframe = modal.querySelector('#pFrame iframe');
         const source = modal.querySelector('#pSource').value;
@@ -176,7 +170,7 @@
         }
         // A fresh iframe, so its load guard starts counting from zero.
         const fresh = iframe.cloneNode();
-        // Start where this profile left off (sync.js).
+        // Start where this account left off (sync.js).
         fresh.src = fresh.dataset.src = SM.sync ? SM.sync.withResume(url.href, source) : url.href;
         fresh.dataset.n = '0';
         fresh.dataset.tv = '1';
@@ -355,13 +349,14 @@
         ['play', '', 'southpark', 'South Park'],
         ['sliders', '#/settings', 'settings', 'Settings'],
     ];
-    rail.innerHTML = `<span class="tv-brand"><img src="previews/branding/favicon-128x128.png" alt=""></span>` +
+    rail.innerHTML = `<span class="tv-brand"><img src="previews/icon.svg" alt=""></span>` +
         MENU.map(([ic, href, nav, label]) => href
-            ? `<a href="${href}" data-nav="${nav}">${icon(ic)}<span class="tv-label">${label}</span></a>`
+            ? `<a href="${href}" data-nav="${nav}">${nav === 'settings' ? `<span data-avatar>${icon(ic)}</span>` : icon(ic)}<span class="tv-label">${label}</span></a>`
             : `<button type="button" data-tv-action="${nav}">${icon(ic)}<span class="tv-label">${label}</span></button>`).join('');
     rail.querySelector('[data-tv-action="surprise"]').addEventListener('click', () => SM.surprise());
     rail.querySelector('[data-tv-action="southpark"]').addEventListener('click', () => SM.southPark());
     document.body.appendChild(rail);
+    if (SM.sync) SM.sync.avatar();
 
     // The router already highlighted [data-nav] before this menu existed.
     const ROUTE_NAV = { home: 'home', movies: 'movies', movie: 'movies', tv: 'tv', list: 'list', goat: 'goat', settings: 'settings', search: 'search' };
@@ -509,7 +504,7 @@
 
     const FOCUSABLE = 'a[href],button:not([disabled]),select,label.switch,.modal-player .frame';
     // Hover-only extras and links that would leave the app.
-    const SKIP = '.card-wl,.card-x,.card-title,.row-link,.row-arrows *,.hero-dots *,.skip,.ep-tor,.ep-expand,.links a,.footer *,.swatch-custom,.topbar *,.tabbar *';
+    const SKIP = '.card-wl,.card-x,.card-title,.row-link,.row-arrows *,.hero-dots *,.skip,.ep-expand,.links a,.footer *,.swatch-custom,.topbar *,.tabbar *';
 
     const rectOf = el => el.getBoundingClientRect();
     const centerY = el => { const r = rectOf(el); return r.top + r.height / 2; };
@@ -517,7 +512,7 @@
 
     function usable(el) {
         if (!el || el === document.body || !el.isConnected || el.matches(SKIP) || el.closest('.hero-slide:not(.on)')) return false;
-        if (el.matches('a[target="_blank"]') && !el.closest('.providers-row')) return false;
+        if (el.matches('a[target="_blank"]')) return false;
         const r = rectOf(el);
         return r.width > 0 && r.height > 0;
     }
@@ -682,7 +677,7 @@
 
     // ---- remote keys ---------------------------------------------------------------------------
 
-    // Back always heads home: the player or any page goes to Heartive's home, and Heartive's
+    // Back always heads home: the player or any page goes to the home page, and the home page
     // home goes to the launcher. Pop-ups and dropdowns just close.
     function back() {
         if (closePicker()) return;
@@ -718,16 +713,12 @@
         else move(k);
     }, true);
 
-    // Provider logos open their app; any other link out of Heartive is blocked on the TV.
+    // Links out of the site don't open on the TV.
     document.addEventListener('click', e => {
-        const logo = e.target.closest('.providers-row a');
-        const out = e.target.closest('a[target="_blank"]');
-        if (!logo && !out) return;
+        if (!e.target.closest('a[target="_blank"]')) return;
         e.preventDefault();
         e.stopPropagation();
-        const a = logo && appFor(logo.title || '');
-        if (a) launchApp(a);
-        else ui.toast("Web links don't open on the TV", { icon: 'info' });
+        ui.toast("Web links don't open on the TV", { icon: 'info' });
     }, true);
 
     afterRender();

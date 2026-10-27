@@ -12,8 +12,8 @@
 
 /* Things that need a mouse, open other websites, or don't apply on a TV */
 .tv .topbar, .tv .tabbar, .tv .footer, .tv .row-arrows, .tv .row-link, .tv .card-wl, .tv .card-x,
-.tv .hero-dots, .tv .skip, .tv .ep-tor, .tv .ep-expand, .tv .links, .tv .kbd-panel, .tv #data .actions,
-.tv .search-page, .tv .swatch-custom, .tv .row-news { display: none !important; }
+.tv .hero-dots, .tv .skip, .tv .ep-expand, .tv .links, .tv .kbd-panel, .tv #data .actions,
+.tv .search-page, .tv .swatch-custom { display: none !important; }
 
 /* ---- focus: one big, obvious highlight ---- */
 .tv :focus { outline: none; } /* drawn with .tv-focus instead, set by tv.js */
@@ -119,7 +119,6 @@ html:not(.tv) .tv-rail { display: none; }
     margin-top: -14px;
 }
 .tv .row-wide .rail { --w: 420px; }
-.tv .row-people .rail { --w: 190px; }
 .tv .card-title { font-size: 21px; }
 .tv .card-sub { font-size: 18px; }
 .tv .card-play { width: 72px; height: 72px; margin: -36px 0 0 -36px; }
@@ -148,7 +147,6 @@ html:not(.tv) .tv-rail { display: none; }
 .tv .credits-line { font-size: 20px; }
 .tv .fact dt { font-size: 17px; }
 .tv .fact dd { font-size: 22px; }
-.tv .providers-row img { width: 64px; height: 64px; }
 .tv .episodes-head h2 { font-size: 36px; }
 .tv .season-select { height: 58px; font-size: 22px; max-width: 420px; }
 .tv .ep { grid-template-columns: 360px 1fr auto; padding: 16px; }
