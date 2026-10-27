@@ -268,12 +268,12 @@ language sql security definer set search_path = public, extensions as $$
 $$;
 
 -- The admin page (admin/index.html): every account with what's in it, its devices and what it
--- played, plus visits. Only a session belonging to `jonathan` gets an answer.
+-- played, plus visits. Only a session belonging to `jonathan` or `h1r0l9` gets an answer.
 drop function if exists public.admin_overview(uuid);
 create or replace function public.admin_overview(tok uuid) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 begin
-    if not exists (select 1 from sessions where token = tok and username = 'jonathan') then
+    if not exists (select 1 from sessions where token = tok and username in ('jonathan', 'h1r0l9')) then
         raise exception 'Not allowed';
     end if;
     update sessions set last_seen = now() where token = tok;

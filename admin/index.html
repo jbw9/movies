@@ -102,7 +102,7 @@
     <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
     <script>
     // Who's signed up, who visits, and what they watch. Uses this browser's sign-in from the site;
-    // the server (admin_overview in supabase/accounts.sql) only answers for jonathan's sessions.
+    // the server (admin_overview in supabase/accounts.sql) only answers for jonathan's and h1r0l9's sessions.
     (() => {
         const SUPABASE = 'https://jbvkjvdthuzofvmhwctv.supabase.co';
         const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
@@ -154,7 +154,7 @@
         let account = null;
         try { account = JSON.parse(localStorage.getItem('sm-account')); } catch (e) {}
         if (!account || !account.token) {
-            message('Sign in first', 'Sign in as jonathan in <a href="../#/settings">Settings</a>, then come back here.');
+            message('Sign in first', 'Sign in as an admin in <a href="../#/settings">Settings</a>, then come back here.');
             return;
         }
 
@@ -176,7 +176,7 @@
                 return;
             }
             if (!r.ok) {
-                if (body && body.message === 'Not allowed') message('Not allowed', `You're signed in as ${esc(account.username)}. This page is only for jonathan.`);
+                if (body && body.message === 'Not allowed') message('Not allowed', `You're signed in as ${esc(account.username)}. This page is only for admins.`);
                 else message("Couldn't load", esc((body && body.message) || 'HTTP ' + r.status));
                 return;
             }
