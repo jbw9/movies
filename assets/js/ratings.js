@@ -3,7 +3,7 @@
 // (https://www.omdbapi.com/apikey.aspx); without one nothing shows. Answers are kept on the device for
 // a week to stay under OMDb's daily limit. Rotten Tomatoes doesn't score single episodes.
 (SM => {
-    const KEY = '';
+    const KEY = 'f965bdfe';
     if (!KEY) return;
     const CACHE = 'sm-omdb', WEEK = 7 * 864e5;
     const cache = SM.ls.get(CACHE, {}) || {};
