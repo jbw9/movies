@@ -7,6 +7,12 @@
     <meta name="theme-color" content="#0b0b10">
     <title>Movies Admin</title>
     <link rel="icon" type="image/svg+xml" href="../previews/icon.svg">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../previews/app/admin-apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Admin">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/app.css">
     <!-- Class names avoid "ad", which ad blockers hide. -->
@@ -530,5 +536,6 @@
         load();
     })();
     </script>
+    <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('../sw.js').catch(() => {});</script>
 </body>
 </html>
