@@ -29,7 +29,7 @@
     // Detail pages render their IMDb link in the facts below; that gives the id.
     const view = document.getElementById('view');
     new MutationObserver(() => {
-        const imdb = (view.querySelector('.detail a[href*="imdb.com/title/"]')?.href.match(/tt\d+/) || [])[0];
+        const imdb = (view.querySelector('a[href*="imdb.com/title/"]')?.href.match(/tt\d+/) || [])[0];
         if (!imdb) return;
 
         const line = view.querySelector('.detail .facts-line:not([data-rt])');
@@ -47,7 +47,7 @@
             }).catch(() => {});
         }
 
-        view.querySelectorAll('.detail [data-play-ep]').forEach(btn => {
+        view.querySelectorAll('[data-play-ep]').forEach(btn => {
             const sub = btn.parentElement.querySelector('.ep-sub:not([data-rt])');
             if (!sub) return;
             sub.dataset.rt = '1';
