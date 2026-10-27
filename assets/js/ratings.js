@@ -1,7 +1,7 @@
-// IMDb rating and Rotten Tomatoes score next to the ★ rating on movie and series pages, and the IMDb
-// rating on each episode. TMDB has neither, so they come from OMDb by IMDb id, which needs a free key
-// (https://www.omdbapi.com/apikey.aspx); without one nothing shows. Answers are kept on the device for
-// a week to stay under OMDb's daily limit. Rotten Tomatoes doesn't score single episodes.
+// Rotten Tomatoes score next to the ★ rating on movie and series pages and on their cards. TMDB doesn't
+// have it, so it comes from OMDb by IMDb id, which needs a free key (https://www.omdbapi.com/apikey.aspx);
+// without one nothing shows. Scores are kept on the device for a week to stay under OMDb's daily limit,
+// and cards are only looked up once they scroll into view.
 (SM => {
     const KEY = 'f965bdfe';
     if (!KEY) return;
@@ -9,57 +9,59 @@
     const cache = SM.ls.get(CACHE, {}) || {};
     const pending = {};
 
-    // Query is i=<imdb id>, optionally with &Season=<n>, which lists that season's episodes.
-    function omdb(q) {
-        const hit = cache[q];
+    // Cached under the IMDb id, or under the card's type:id when the IMDb id has to come from TMDB first.
+    function cached(k, load) {
+        const hit = cache[k];
         if (hit && Date.now() - hit[1] < WEEK) return Promise.resolve(hit[0]);
-        return pending[q] ||= fetch(`https://www.omdbapi.com/?${q}&apikey=${KEY}`).then(r => r.json()).then(r => {
-            const v = q.includes('Season')
-                ? Object.fromEntries((r.Episodes || []).map(e => [e.Episode, e.imdbRating]))
-                : { imdb: r.imdbRating, rt: ((r.Ratings || []).find(x => x.Source === 'Rotten Tomatoes') || {}).Value };
-            cache[q] = [v, Date.now()];
+        return pending[k] ||= load().then(v => {
+            cache[k] = [v, Date.now()];
             SM.ls.set(CACHE, cache);
             return v;
-        }).finally(() => delete pending[q]);
+        }).finally(() => delete pending[k]);
     }
 
-    const num = v => v && v !== 'N/A' ? v : '';
-    const imdbHtml = v => `<span class="imdb" title="IMDb rating"><b>IMDb</b> ${SM.esc(v)}</span>`;
+    const score = imdb => cached(imdb, () => fetch(`https://www.omdbapi.com/?i=${imdb}&apikey=${KEY}`).then(r => r.json())
+        .then(r => ((r.Ratings || []).find(x => x.Source === 'Rotten Tomatoes') || {}).Value || ''));
 
-    // Detail pages render their IMDb link in the facts below; that gives the id.
+    const scoreFor = (type, id) => cached(`${type}:${id}`, () => SM.api.tmdb(`/${type}/${id}/external_ids`)
+        .then(r => r.imdb_id ? score(r.imdb_id) : ''));
+
+    const tomato = rt => `🍅 ${SM.esc(rt)}`;
+
+    const seen = new IntersectionObserver(entries => entries.forEach(({ isIntersecting, target: card }) => {
+        if (!isIntersecting) return;
+        seen.unobserve(card);
+        const [type, id] = card.dataset.key.split(':');
+        scoreFor(type, id).then(rt => {
+            const badges = card.querySelector('.card-badges');
+            if (!rt || !badges) return;
+            const html = `<span class="badge rt" title="Rotten Tomatoes">${tomato(rt)}</span>`;
+            const rating = badges.querySelector('.rating');
+            if (rating) rating.insertAdjacentHTML('afterend', html);
+            else badges.insertAdjacentHTML('afterbegin', html);
+        }).catch(() => {});
+    }), { rootMargin: '200px' });
+
     const view = document.getElementById('view');
     new MutationObserver(() => {
-        const imdb = (view.querySelector('a[href*="imdb.com/title/"]')?.href.match(/tt\d+/) || [])[0];
-        if (!imdb) return;
-
-        const line = view.querySelector('.detail .facts-line:not([data-rt])');
-        if (line) {
-            line.dataset.rt = '1';
-            omdb('i=' + imdb).then(({ imdb: i, rt }) => {
-                const html = [num(i) && imdbHtml(i), num(rt) && `<span class="rt" title="Rotten Tomatoes">🍅 ${SM.esc(rt)}</span>`]
-                    .filter(Boolean).map(h => '<span class="dot"></span>' + h).join('');
-                if (!html || !line.isConnected) return;
-                // Right after the ★ rating's part of the line (parts are split by dots).
-                let next = line.querySelector('.rating');
-                while (next && !(next.classList && next.classList.contains('dot'))) next = next.nextSibling;
-                if (next) next.insertAdjacentHTML('beforebegin', html);
-                else line.insertAdjacentHTML('beforeend', html);
-            }).catch(() => {});
-        }
-
-        view.querySelectorAll('[data-play-ep]').forEach(btn => {
-            const sub = btn.parentElement.querySelector('.ep-sub:not([data-rt])');
-            if (!sub) return;
-            sub.dataset.rt = '1';
-            const [, season, episode] = btn.dataset.playEp.split(':');
-            omdb(`i=${imdb}&Season=${season}`).then(eps => {
-                const v = num(eps[episode]);
-                if (!v || !sub.isConnected) return;
-                const html = (sub.textContent.trim() ? ' · ' : '') + imdbHtml(v);
-                const expand = sub.querySelector('.ep-expand');
-                if (expand) expand.insertAdjacentHTML('beforebegin', html);
-                else sub.insertAdjacentHTML('beforeend', html);
-            }).catch(() => {});
+        view.querySelectorAll('.card:is([data-key^="movie:"], [data-key^="tv:"]):not([data-rt])').forEach(card => {
+            card.dataset.rt = '1';
+            seen.observe(card);
         });
+
+        // Detail pages render their IMDb link in the facts below; that gives the id.
+        const line = view.querySelector('.detail .facts-line:not([data-rt])');
+        const imdb = (view.querySelector('a[href*="imdb.com/title/"]')?.href.match(/tt\d+/) || [])[0];
+        if (!line || !imdb) return;
+        line.dataset.rt = '1';
+        score(imdb).then(rt => {
+            if (!rt || !line.isConnected) return;
+            // Right after the ★ rating's part of the line (parts are split by dots).
+            const html = `<span class="dot"></span><span class="rt" title="Rotten Tomatoes">${tomato(rt)}</span>`;
+            let next = line.querySelector('.rating');
+            while (next && !(next.classList && next.classList.contains('dot'))) next = next.nextSibling;
+            if (next) next.insertAdjacentHTML('beforebegin', html);
+            else line.insertAdjacentHTML('beforeend', html);
+        }).catch(() => {});
     }).observe(view, { childList: true, subtree: true });
 })(window.SM);
