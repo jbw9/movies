@@ -1,45 +1,62 @@
 // Rotten Tomatoes score next to the ★ rating on movie and series pages and on their cards. TMDB doesn't
-// have it, so it comes from OMDb by IMDb id, which needs a free key (https://www.omdbapi.com/apikey.aspx);
-// without one nothing shows. Scores are kept on the device for a week to stay under OMDb's daily limit,
-// and cards are only looked up once they scroll into view.
+// have it; the rt edge function (supabase/functions/rt) does, fetching each title from MDBList once for
+// everyone. Scores are also kept on the device for a week, and cards are only asked about once they
+// scroll into view, a batch at a time.
 (SM => {
-    const KEY = 'f965bdfe';
-    if (!KEY) return;
-    const CACHE = 'sm-omdb', WEEK = 7 * 864e5;
+    const FN = 'https://jbvkjvdthuzofvmhwctv.supabase.co/functions/v1/rt';
+    const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
+    const CACHE = 'sm-rt', WEEK = 7 * 864e5;
     const cache = SM.ls.get(CACHE, {}) || {};
-    const pending = {};
+    let queue = new Map(), timer;
 
-    // Cached under the IMDb id, or under the card's type:id when the IMDb id has to come from TMDB first.
-    function cached(k, load) {
-        const hit = cache[k];
+    // Resolves to the score as a number, or null when Rotten Tomatoes has none.
+    function score(key) {
+        const hit = cache[key];
         if (hit && Date.now() - hit[1] < WEEK) return Promise.resolve(hit[0]);
-        return pending[k] ||= load().then(v => {
-            cache[k] = [v, Date.now()];
-            SM.ls.set(CACHE, cache);
-            return v;
-        }).finally(() => delete pending[k]);
+        if (!queue.has(key)) {
+            let resolve;
+            queue.set(key, { promise: new Promise(r => resolve = r), resolve });
+        }
+        timer ||= setTimeout(flush, 150);
+        return queue.get(key).promise;
     }
 
-    const score = imdb => cached(imdb, () => fetch(`https://www.omdbapi.com/?i=${imdb}&apikey=${KEY}`).then(r => r.json())
-        .then(r => ((r.Ratings || []).find(x => x.Source === 'Rotten Tomatoes') || {}).Value || ''));
+    async function flush() {
+        const batch = queue;
+        queue = new Map();
+        timer = null;
+        const keys = [...batch.keys()], got = {};
+        // The function answers up to 100 keys a call.
+        for (let i = 0; i < keys.length; i += 100) {
+            try {
+                Object.assign(got, await fetch(FN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', apikey: KEY },
+                    body: JSON.stringify({ keys: keys.slice(i, i + 100) }),
+                }).then(r => r.json()));
+            } catch (e) {}
+        }
+        batch.forEach(({ resolve }, key) => {
+            // Keys the function couldn't answer aren't cached, so they're asked about again next time.
+            if (key in got) cache[key] = [got[key], Date.now()];
+            resolve(got[key] ?? null);
+        });
+        SM.ls.set(CACHE, cache);
+    }
 
-    const scoreFor = (type, id) => cached(`${type}:${id}`, () => SM.api.tmdb(`/${type}/${id}/external_ids`)
-        .then(r => r.imdb_id ? score(r.imdb_id) : ''));
-
-    const tomato = rt => `🍅 ${SM.esc(rt)}`;
+    const tomato = rt => `🍅 ${rt}%`;
 
     const seen = new IntersectionObserver(entries => entries.forEach(({ isIntersecting, target: card }) => {
         if (!isIntersecting) return;
         seen.unobserve(card);
-        const [type, id] = card.dataset.key.split(':');
-        scoreFor(type, id).then(rt => {
+        score(card.dataset.key).then(rt => {
             const badges = card.querySelector('.card-badges');
-            if (!rt || !badges) return;
+            if (rt == null || !badges) return;
             const html = `<span class="badge rt" title="Rotten Tomatoes">${tomato(rt)}</span>`;
             const rating = badges.querySelector('.rating');
             if (rating) rating.insertAdjacentHTML('afterend', html);
             else badges.insertAdjacentHTML('afterbegin', html);
-        }).catch(() => {});
+        });
     }), { rootMargin: '200px' });
 
     const view = document.getElementById('view');
@@ -49,19 +66,18 @@
             seen.observe(card);
         });
 
-        // Detail pages render their IMDb link in the facts below; that gives the id.
         const line = view.querySelector('.detail .facts-line:not([data-rt])');
-        const imdb = (view.querySelector('a[href*="imdb.com/title/"]')?.href.match(/tt\d+/) || [])[0];
-        if (!line || !imdb) return;
+        const [, type, id] = location.hash.match(/^#\/(movie|tv)\/(\d+)/) || [];
+        if (!line || !type) return;
         line.dataset.rt = '1';
-        score(imdb).then(rt => {
-            if (!rt || !line.isConnected) return;
+        score(`${type}:${id}`).then(rt => {
+            if (rt == null || !line.isConnected) return;
             // Right after the ★ rating's part of the line (parts are split by dots).
             const html = `<span class="dot"></span><span class="rt" title="Rotten Tomatoes">${tomato(rt)}</span>`;
             let next = line.querySelector('.rating');
             while (next && !(next.classList && next.classList.contains('dot'))) next = next.nextSibling;
             if (next) next.insertAdjacentHTML('beforebegin', html);
             else line.insertAdjacentHTML('beforeend', html);
-        }).catch(() => {});
+        });
     }).observe(view, { childList: true, subtree: true });
 })(window.SM);
