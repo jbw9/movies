@@ -346,13 +346,13 @@
         ['bookmark', '#/list', 'list', 'My List'],
         ['goat', '#/goat', 'goat', 'GOAT'],
         ['shuffle', '', 'surprise', 'Surprise me'],
-        ['play', '', 'southpark', 'South Park'],
+        ['cartman', '', 'southpark', 'South Park'],
         ['sliders', '#/settings', 'settings', 'Settings'],
     ];
     rail.innerHTML = `<span class="tv-brand"><img src="previews/icon.svg" alt=""></span>` +
         MENU.map(([ic, href, nav, label]) => href
             ? `<a href="${href}" data-nav="${nav}">${nav === 'settings' ? `<span data-avatar>${icon(ic)}</span>` : icon(ic)}<span class="tv-label">${label}</span></a>`
-            : `<button type="button" data-tv-action="${nav}">${icon(ic)}<span class="tv-label">${label}</span></button>`).join('');
+            : `<button type="button" data-tv-action="${nav}">${ic === 'cartman' ? '<img class="ic" src="previews/cartman.png" alt="">' : icon(ic)}<span class="tv-label">${label}</span></button>`).join('');
     rail.querySelector('[data-tv-action="surprise"]').addEventListener('click', () => SM.surprise());
     rail.querySelector('[data-tv-action="southpark"]').addEventListener('click', () => SM.southPark());
     document.body.appendChild(rail);
