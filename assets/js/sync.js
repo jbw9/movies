@@ -8,6 +8,8 @@
     const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
     // Where people write when they forget their password; reset it as supabase/accounts.sql says.
     const CONTACT = 'jonathanbernard265@gmail.com';
+    // Where a phone signs in a TV (link/index.html); the TV runs from a file, so it's spelled out.
+    const LINK = 'https://jbw9.github.io/movies/link/';
     const { ls, esc, ui, library } = SM;
     const ACCOUNT = 'sm-account', BASE = 'sm-sync-base', PROGRESS = 'sm-progress';
     const SECTIONS = ['watchlist', 'goat', 'history', 'log', 'watched', 'progress'];
@@ -349,7 +351,9 @@
             err.textContent = '';
             try {
                 await signIn(f.username.value, f.password.value, create);
-                ui.closeModal();
+                // Opens in place of this one; closing first would take the new one down with it.
+                if (afterSignIn) afterSignIn();
+                else ui.closeModal();
             } catch (e) {
                 err.textContent = e.message;
                 submit.disabled = false;
@@ -358,22 +362,72 @@
         modal.querySelector('[data-auth]').addEventListener('click', e => authForm(e.currentTarget.dataset.auth));
     }
 
-    // The TV has no keyboard: pick sign in or create, then type both on the keypad.
+    // A QR code as an SVG, with the quiet zone scanners need around it.
+    function qrSvg(text) {
+        const rows = qrMatrix(text), q = 4, size = rows.length + 2 * q;
+        let d = '';
+        rows.forEach((row, y) => row.forEach((dark, x) => { if (dark) d += `M${x + q} ${y + q}h1v1h-1z`; }));
+        return `<svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+    }
+
+    // The TV signs in the way streaming apps do: it shows a code and a QR code of LINK with it,
+    // and a phone that's signed in enters the code. Typing on the keypad is still there.
     function tvAuth() {
         const modal = ui.openModal(`
-            <div class="auth">
+            <div class="auth tv-link">
                 <h2>Sign in to Movies</h2>
-                <p class="panel-note">Keep My List, GOAT, history and where you stopped the same on all your devices.</p>
+                <div class="tv-link-body">
+                    <div class="tv-link-qr"></div>
+                    <div>
+                        <p class="panel-note">Scan the QR code with your phone, or go to</p>
+                        <p class="tv-link-url">${esc(LINK.replace(/^https:\/\/|\/$/g, ''))}</p>
+                        <p class="panel-note">and enter</p>
+                        <p class="tv-link-code">&nbsp;</p>
+                    </div>
+                </div>
                 <div class="actions">
-                    <button type="button" class="btn" data-tv-auth="in">Sign in</button>
+                    <button type="button" class="btn btn-ghost" data-tv-auth="in">Sign in on the TV</button>
                     <button type="button" class="btn btn-ghost" data-tv-auth="up">Create account</button>
                     <button type="button" class="btn btn-ghost" data-close>Not now</button>
                 </div>
                 <p class="panel-note auth-forgot">Forgot your password? Email ${CONTACT} with your username and you'll get a new one.</p>
-            </div>`, 'modal-auth');
+            </div>`, 'modal-auth modal-tv-link');
+
+        // A code lasts 10 minutes (supabase/accounts.sql); a new one replaces it when it runs out.
+        let code = null, stopped = false;
+        const off = SM.on('modal-close', () => stop());
+        function stop() {
+            stopped = true;
+            off();
+        }
+        async function poll() {
+            if (stopped) return;
+            try {
+                if (!code) {
+                    code = await rpc('start_device_code', { dev: deviceName() });
+                    if (stopped) return;
+                    modal.querySelector('.tv-link-qr').innerHTML = qrSvg(LINK + '?c=' + code.code);
+                    modal.querySelector('.tv-link-code').textContent = code.code;
+                } else {
+                    const got = await rpc('poll_device_code', { c: code.code, sec: code.secret });
+                    if (got && !stopped) {
+                        stop();
+                        ui.closeModal();
+                        await useAccount(got.username, got.token);
+                        return ui.toast(`Signed in as ${got.username}`, { icon: 'check' });
+                    }
+                }
+            } catch (e) {
+                if (e.message === 'Expired') code = null;
+            }
+            setTimeout(poll, 3000);
+        }
+        poll();
+
         modal.addEventListener('click', async e => {
             const b = e.target.closest('[data-tv-auth]');
             if (!b) return;
+            stop();
             const username = await keypad('Username', [...'abcdefghijklmnopqrstuvwxyz0123456789._-'], 24);
             const password = username && await keypad('Password', [...'abcdefghijklmnopqrstuvwxyz0123456789.-_!@#?'], 64, true);
             if (!password) return ui.closeModal();
@@ -388,6 +442,50 @@
     }
 
     const openAuth = mode => isTV() ? tvAuth() : authForm(mode);
+
+    // ---- signing in a TV from a phone ----------------------------------------------------------
+
+    // Set when the TV's link is opened signed out: it carries on once signed in.
+    let afterSignIn = null;
+
+    function linkForm(code) {
+        afterSignIn = null;
+        const modal = ui.openModal(`
+            <form class="auth" novalidate>
+                <button type="button" class="icon-btn auth-x" data-close aria-label="Close">${SM.icon('x')}</button>
+                <h2>Sign in on a TV</h2>
+                <p class="panel-note">Enter the code on the TV to sign it in as <b>${esc(account.username)}</b>.</p>
+                <label class="auth-field"><span>Code</span>
+                    <input name="code" value="${esc(code)}" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="8"></label>
+                <p class="auth-error" role="alert"></p>
+                <button class="btn" type="submit">Sign in TV</button>
+            </form>`, 'modal-auth');
+        const form = modal.querySelector('form'), f = form.elements, err = modal.querySelector('.auth-error');
+        if (!code) f.code.focus();
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const c = f.code.value.replace(/[^a-z0-9]/gi, '').toUpperCase();
+            if (!c) return (err.textContent = 'Enter the code shown on the TV.');
+            const submit = form.querySelector('[type="submit"]');
+            submit.disabled = true;
+            err.textContent = '';
+            try {
+                await rpc('approve_device_code', { tok: account.token, c });
+                ui.closeModal();
+                ui.toast('Your TV is signed in', { icon: 'check' });
+                loadDevices();
+            } catch (e) {
+                err.textContent = e.message;
+                submit.disabled = false;
+            }
+        });
+    }
+
+    function linkTv(code) {
+        if (account) return linkForm(code);
+        afterSignIn = () => linkForm(code);
+        authForm('in');
+    }
 
     function passwordForm() {
         const modal = ui.openModal(`
@@ -506,6 +604,7 @@
             <div class="actions">
                 <button class="btn btn-sm" data-sync="now"${running ? ' disabled' : ''}>Sync now</button>
                 ${isTV() ? '' : '<button class="btn btn-sm btn-ghost" data-sync="password">Change password</button>'}
+                ${isTV() ? '' : '<button class="btn btn-sm btn-ghost" data-sync="tv">Sign in a TV</button>'}
                 <button class="btn btn-sm btn-ghost" data-sync="out">Sign out</button>
             </div>
             <div id="devices">${devicesHtml()}</div>`;
@@ -524,6 +623,7 @@
         if (action === 'now') sync();
         else if (action === 'out') signOut();
         else if (action === 'password') passwordForm();
+        else if (action === 'tv') linkTv('');
         else if (action === 'end') {
             b.disabled = true;
             rpc('end_session', { tok: account.token, sid: Number(b.dataset.id) })
@@ -544,6 +644,14 @@
         render();
         loadDevices();
     }).observe(view, { childList: true, subtree: true });
+
+    // The TV's QR code lands here as ?link=CODE (link/index.html); take it out of the address.
+    const query = new URLSearchParams(location.search), linkCode = query.get('link');
+    if (linkCode !== null) {
+        query.delete('link');
+        history.replaceState(history.state, '', location.pathname + (String(query) ? '?' + query : '') + location.hash);
+        linkTv(linkCode);
+    }
 
     // A signed-out device asks once it has finished loading, unless something is already open.
     avatar();

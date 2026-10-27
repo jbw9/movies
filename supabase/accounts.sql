@@ -142,3 +142,102 @@ $$;
 
 -- Once everyone has signed in on a device that used the old profiles, the old table can go:
 --   drop table public.profiles;
+
+-- Signing in a TV from a phone: the TV shows a short code (and a QR code of the link with it),
+-- someone signed in on their phone enters it, and the TV picks up a session of its own. Only
+-- the TV knows `secret`, so guessing a code can't collect the session it gets.
+create table if not exists public.device_codes (
+    code text primary key,
+    secret uuid not null default gen_random_uuid(),
+    dev text,
+    token uuid,
+    username text,
+    created_at timestamptz not null default now()
+);
+alter table public.device_codes enable row level security;
+
+create or replace function public.start_device_code(dev text default null) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+    abc text := '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+    bytes bytea;
+    c text;
+    s uuid;
+begin
+    delete from device_codes where created_at < now() - interval '10 minutes';
+    loop
+        bytes := gen_random_bytes(6);
+        c := '';
+        for i in 0..5 loop
+            c := c || substr(abc, 1 + get_byte(bytes, i) % length(abc), 1);
+        end loop;
+        begin
+            insert into device_codes (code, dev) values (c, dev) returning secret into s;
+            exit;
+        exception when unique_violation then
+            null; -- taken: try another code
+        end;
+    end loop;
+    return jsonb_build_object('code', c, 'secret', s);
+end $$;
+
+-- Null until someone approves it; then the TV's sign-in, handed out once.
+create or replace function public.poll_device_code(c text, sec uuid) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+    r device_codes;
+begin
+    select * into r from device_codes where code = c and secret = sec and created_at > now() - interval '10 minutes';
+    if not found then
+        raise exception 'Expired';
+    end if;
+    if r.token is null then
+        return null;
+    end if;
+    delete from device_codes where code = c;
+    return jsonb_build_object('username', r.username, 'token', r.token);
+end $$;
+
+create or replace function public.approve_device_code(tok uuid, c text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+    u text;
+    d text;
+    t uuid;
+begin
+    select username into u from sessions where token = tok;
+    if u is null then
+        raise exception 'Signed out';
+    end if;
+    select dev into d from device_codes
+    where code = upper(trim(c)) and token is null and created_at > now() - interval '10 minutes';
+    if not found then
+        raise exception 'That code is wrong or has expired. Check the one on your TV.';
+    end if;
+    insert into sessions (username, device) values (u, d) returning token into t;
+    update device_codes set token = t, username = u where code = upper(trim(c));
+end $$;
+
+-- The admin page (admin/index.html): every account with what's in it and its devices. Only a
+-- session belonging to `jonathan` gets an answer.
+create or replace function public.admin_overview(tok uuid) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+    if not exists (select 1 from sessions where token = tok and username = 'jonathan') then
+        raise exception 'Not allowed';
+    end if;
+    update sessions set last_seen = now() where token = tok;
+    return (select coalesce(jsonb_agg(jsonb_build_object(
+        'username', a.username,
+        'created_at', a.created_at,
+        'updated_at', a.updated_at,
+        -- Removals stay in the document as markers, so only entries without `gone` count.
+        'counts', (select coalesce(jsonb_object_agg(sec, (select count(*) from jsonb_each(
+                case when jsonb_typeof(a.data -> sec) = 'object' then a.data -> sec else '{}' end) e
+                where not (e.value ? 'gone'))), '{}')
+            from unnest(array['watchlist', 'goat', 'history', 'watched']) sec),
+        'devices', (select coalesce(jsonb_agg(jsonb_build_object('device', s.device, 'created_at', s.created_at,
+                'last_seen', s.last_seen) order by s.last_seen desc), '[]')
+            from sessions s where s.username = a.username)
+    ) order by a.created_at desc), '[]') from accounts a);
+end $$;
