@@ -9,63 +9,129 @@
     <link rel="icon" type="image/svg+xml" href="../previews/icon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/app.css">
+    <!-- Class names avoid "ad", which ad blockers hide. -->
     <style>
-        .dash { max-width: 1100px; margin: 0 auto; padding: 28px 16px 64px; }
+        .dash { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
         .dash-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
         .dash-head h1 { font-size: 28px; font-weight: 800; }
         .dash-head p { color: var(--muted); font-size: 14px; margin-top: 4px; }
-        .dash-btns { display: flex; gap: 8px; }
+        .dash-btns { display: flex; gap: 8px; flex-wrap: wrap; }
         .dash-btn { border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 7px 14px; font-size: 14px; color: var(--text-2); }
         .dash-btn:hover { background: var(--surface-2); color: var(--text); }
-        .dash-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
-        .dash-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+        .dash-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+        .dash-link { color: var(--accent); font-size: 13px; font-weight: 600; margin-top: 8px; }
+        .dash-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+        .dash-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
         .dash-card h2 { font: 600 14px/1.3 var(--body); color: var(--text-2); margin-bottom: 14px; }
+        .dash-card h2 small { color: var(--muted); font-weight: 400; margin-left: 6px; }
         .dash-tile .k { font-size: 13px; color: var(--muted); }
         .dash-tile .v { font: 800 32px/1.1 var(--display); margin-top: 6px; font-variant-numeric: tabular-nums; }
         .dash-tile .s { font-size: 12px; color: var(--muted); margin-top: 4px; }
-        .dash-bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; }
-        .dash-bars div { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
-        .dash-bars div.zero { background: var(--surface-3); }
-        .dash-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
-        section.dash-card { margin-top: 16px; }
+        .dash-stack > * + * { margin-top: 16px; }
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+        .dash-adv { border-top: 1px solid var(--line-2); padding-top: 24px; margin-top: 32px; }
+        .dash-adv > h2 { font-size: 20px; margin-bottom: 4px; }
+        .dash-adv > p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+        .dash-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
+        .dash-bars > div { flex: 1; display: flex; flex-direction: column-reverse; height: 100%; min-width: 0; }
+        .dash-bars > div > i { display: block; background: var(--accent); }
+        .dash-bars > div > i.b { background: rgb(var(--accent-rgb) / .4); }
+        .dash-bars > div > i:last-child { border-radius: 3px 3px 0 0; }
+        .dash-bars > div.zero::after { content: ""; display: block; height: 2px; background: var(--surface-3); }
+        .dash-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; gap: 3px; }
+        .dash-axis.all span { flex: 1; text-align: center; min-width: 0; overflow: hidden; }
+        .dash-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+        .dash-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--accent); margin-right: 6px; vertical-align: -1px; }
+        .dash-legend span.b::before { background: rgb(var(--accent-rgb) / .4); }
+        .dash-map { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+        .dash-map svg { width: 100%; height: auto; display: block; }
+        .dash-map path.land { fill: var(--surface-3); stroke: var(--bg); stroke-width: .5; }
+        .dash-map path.land.hit { cursor: pointer; }
+        .dash-map path.land.hit:hover { stroke: var(--text); stroke-width: 1; }
+        .dash-places { font-size: 13px; max-height: 340px; overflow-y: auto; }
+        .dash-places button, .dash-places div { display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; padding: 6px 8px; border-radius: 8px; }
+        .dash-places button:hover { background: var(--surface-2); }
+        .dash-places span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .dash-places .back { color: var(--accent); font-weight: 600; justify-content: flex-start; }
+        .dash-places h3 { font: 600 12px/1 var(--body); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 12px 8px 6px; }
+        .dash-tip { position: fixed; pointer-events: none; background: var(--surface-3); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 10px; font-size: 13px; z-index: 10; }
         .dash-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
         .dash-tools h2 { margin: 0; }
         .dash-tools input { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 12px; width: min(240px, 100%); }
         .dash-scroll { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; cursor: pointer; user-select: none; }
+        th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+        th[data-k] { cursor: pointer; user-select: none; }
         th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
         th[aria-sort] { color: var(--text); }
         th[aria-sort="ascending"]::after { content: " ↑"; }
         th[aria-sort="descending"]::after { content: " ↓"; }
         td { padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+        td.wrap { white-space: normal; }
         tr.row { cursor: pointer; }
         tr.row:hover td { background: var(--surface-2); }
         tr.row td:first-child { font-weight: 600; }
-        tr.devs td { background: var(--bg-2); color: var(--text-2); font-size: 13px; white-space: normal; }
-        .dash-dev { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
-        .dash-dev span:last-child { color: var(--muted); white-space: nowrap; }
+        tr.more > td { background: var(--bg-2); color: var(--text-2); font-size: 13px; white-space: normal; padding: 16px; }
+        .dash-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px; }
+        .dash-detail h3 { font: 600 12px/1 var(--body); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+        .dash-detail h3 + * { margin-top: 0; }
+        .dash-detail h3:not(:first-child) { margin-top: 18px; }
+        .dash-line { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
+        .dash-line span:last-child { color: var(--muted); white-space: nowrap; }
+        .dash-sub { font: 600 14px/1.3 var(--body); color: var(--text-2); margin: 18px 0 10px; }
+        .dash-pill { display: inline-block; font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line-2); border-radius: 99px; padding: 0 6px; margin-right: 6px; }
         .dash-on { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
+        .dash-guest { color: var(--muted); font-style: italic; }
         .dash-msg { text-align: center; padding: 80px 16px; color: var(--text-2); }
         .dash-msg h1 { font-size: 24px; margin-bottom: 8px; color: var(--text); }
         .dash-msg a { color: var(--accent); }
+        @media (max-width: 760px) { .dash-map { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <main class="dash" id="app"><p class="dash-msg">Loading…</p></main>
+    <div class="dash-tip" id="tip" hidden></div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
     <script>
-    // Who's signed up and what they keep. Uses this browser's sign-in from the site; the server
-    // (admin_overview in supabase/accounts.sql) only answers for jonathan's sessions.
+    // Who's signed up, who visits, and what they watch. Uses this browser's sign-in from the site;
+    // the server (admin_overview in supabase/accounts.sql) only answers for jonathan's sessions.
     (() => {
         const SUPABASE = 'https://jbvkjvdthuzofvmhwctv.supabase.co';
         const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
+        const WORLD = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
+        const US = 'https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/states-10m.json';
         const DAY = 864e5;
-        const app = document.getElementById('app');
+        const app = document.getElementById('app'), tip = document.getElementById('tip');
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-        const n = x => x.toLocaleString();
+        const n = x => Math.round(x).toLocaleString();
+        const hours = s => s >= 36e3 ? n(s / 3600) + 'h' : (s / 3600).toFixed(1).replace(/\.0$/, '') + 'h';
+        const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
         const date = t => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        const short = d => new Date(d + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
         const dayKey = t => new Date(t).toLocaleDateString('en-CA');
+        const store = {
+            get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+            set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+        };
+
+        // Map names that aren't the English name of their country code.
+        const MAP_CC = {
+            'United States of America': 'US', 'Bosnia and Herz.': 'BA', 'Central African Rep.': 'CF', 'Congo': 'CG',
+            'Dem. Rep. Congo': 'CD', 'Dominican Rep.': 'DO', 'Eq. Guinea': 'GQ', 'Falkland Is.': 'FK',
+            'Fr. S. Antarctic Lands': 'TF', 'Macedonia': 'MK', 'Myanmar': 'MM', 'S. Sudan': 'SS', 'Solomon Is.': 'SB',
+            'W. Sahara': 'EH', 'eSwatini': 'SZ', "Côte d'Ivoire": 'CI', 'Kosovo': 'XK', 'Palestine': 'PS',
+            'Turkey': 'TR', 'Trinidad and Tobago': 'TT', 'Czechia': 'CZ', 'N. Cyprus': 'CY', 'Somaliland': 'SO',
+        };
+        const regionName = (() => {
+            try {
+                const names = new Intl.DisplayNames(['en'], { type: 'region' });
+                return cc => { try { return names.of(cc); } catch (e) { return cc; } };
+            } catch (e) {
+                return cc => cc;
+            }
+        })();
 
         function ago(t) {
             if (!t) return '—';
@@ -86,73 +152,185 @@
             return;
         }
 
-        let accounts = [], sort = { key: 'created', dir: -1 }, query = '';
-        const open = new Set();
+        let data = null, accounts = [], sort = { key: 'created', dir: -1 }, query = '';
+        let advanced = store.get('dash-advanced') === '1', place = null;
+        const open = new Set(), shown = {};
 
         async function load() {
-            let r, data;
+            let r, body;
             try {
                 r = await fetch(SUPABASE + '/rest/v1/rpc/admin_overview', {
                     method: 'POST',
                     headers: { apikey: KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tok: account.token }),
                 });
-                data = await r.json();
+                body = await r.json();
             } catch (e) {
                 message("Couldn't load", "Couldn't reach the server. Check your connection.");
                 return;
             }
             if (!r.ok) {
-                if (data && data.message === 'Not allowed') message('Not allowed', `You're signed in as ${esc(account.username)}. This page is only for jonathan.`);
-                else message("Couldn't load", esc((data && data.message) || 'HTTP ' + r.status));
+                if (body && body.message === 'Not allowed') message('Not allowed', `You're signed in as ${esc(account.username)}. This page is only for jonathan.`);
+                else message("Couldn't load", esc((body && body.message) || 'HTTP ' + r.status));
                 return;
             }
-            accounts = data.map(a => ({
+            data = body;
+            accounts = data.accounts.map(a => ({
                 ...a,
                 last_seen: a.devices.reduce((m, d) => (!m || d.last_seen > m ? d.last_seen : m), null),
             }));
             render();
         }
 
-        const COLUMNS = [
-            { key: 'username', label: 'Username', get: a => a.username },
-            { key: 'created', label: 'Joined', get: a => a.created_at, show: a => date(a.created_at) },
-            { key: 'seen', label: 'Last active', get: a => a.last_seen || '', show: a => (a.last_seen && Date.now() - new Date(a.last_seen) < 10 * 6e4 ? '<span class="dash-on"></span>' : '') + ago(a.last_seen) },
-            { key: 'devices', label: 'Devices', num: true, get: a => a.devices.length },
-            { key: 'watchlist', label: 'My List', num: true, get: a => a.counts.watchlist || 0 },
-            { key: 'goat', label: 'GOAT', num: true, get: a => a.counts.goat || 0 },
-            { key: 'history', label: 'History', num: true, get: a => a.counts.history || 0 },
-            { key: 'watched', label: 'Episodes', num: true, get: a => a.counts.watched || 0 },
-        ];
+        // ---- pieces ----------------------------------------------------------------------------
+
+        const tile = (k, v, s) => `<div class="dash-card dash-tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+        const card = (title, body, note = '') => `<section class="dash-card"><h2>${title}${note ? `<small>${note}</small>` : ''}</h2>${body}</section>`;
+        const last30 = () => Array.from({ length: 30 }, (_, i) => dayKey(Date.now() - (29 - i) * DAY));
+        const within = (t, days) => t && Date.now() - new Date(t) < days * DAY;
+
+        // Bars of one series, or two stacked; `rows` are { label, a, b?, tip }.
+        function bars(rows, { axis = 'ends', legend } = {}) {
+            const max = Math.max(1, ...rows.map(r => r.a + (r.b || 0)));
+            const cols = rows.map(r => `<div class="${r.a + (r.b || 0) ? '' : 'zero'}" title="${esc(r.tip)}">${r.a ? `<i style="height:${r.a / max * 100}%"></i>` : ''}${r.b ? `<i class="b" style="height:${r.b / max * 100}%"></i>` : ''}</div>`).join('');
+            const labels = axis === 'all'
+                ? `<div class="dash-axis all">${rows.map(r => `<span>${r.label}</span>`).join('')}</div>`
+                : `<div class="dash-axis"><span>${rows[0].label}</span><span>Today</span></div>`;
+            const key = legend ? `<div class="dash-legend"><span>${legend[0]}</span><span class="b">${legend[1]}</span></div>` : '';
+            return `<div class="dash-bars">${cols}</div>${labels}${key}`;
+        }
+
+        const daily = () => Object.fromEntries(data.daily.map(d => [d.day, d]));
+        const plays = () => accounts.flatMap(a => a.played.map(p => ({ ...p, user: a.username }))).filter(p => p.at);
+        const totalSeconds = () => accounts.reduce((s, a) => s + a.counts.seconds, 0) + data.guest_seconds;
 
         function tiles() {
-            const now = Date.now();
-            const within = (t, days) => t && now - new Date(t) < days * DAY;
-            const devices = accounts.reduce((s, a) => s + a.devices.length, 0);
-            const sum = k => accounts.reduce((s, a) => s + (a.counts[k] || 0), 0);
-            const tile = (k, v, s) => `<div class="dash-card dash-tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
             return `<div class="dash-tiles">
                 ${tile('Accounts', n(accounts.length), `${n(accounts.filter(a => within(a.created_at, 7)).length)} new this week`)}
                 ${tile('Sign-ups (30d)', n(accounts.filter(a => within(a.created_at, 30)).length), `${n(accounts.filter(a => within(a.created_at, 1)).length)} today`)}
-                ${tile('Active (7d)', n(accounts.filter(a => within(a.last_seen, 7)).length), `${n(accounts.filter(a => within(a.last_seen, 1)).length)} in the last day`)}
-                ${tile('Devices signed in', n(devices), `${accounts.length ? (devices / accounts.length).toFixed(1) : 0} per account`)}
-                ${tile('Titles saved', n(sum('watchlist') + sum('goat')), `${n(sum('history'))} in history · ${n(sum('watched'))} episodes`)}
+                ${tile('Active accounts (7d)', n(accounts.filter(a => within(a.last_seen, 7)).length), `${n(accounts.filter(a => within(a.last_seen, 1)).length)} in the last day`)}
+                ${tile('Visitors (30d)', n(data.visitors_30), `${n(data.guests_30)} never signed in · ${n(data.visitors)} all time`)}
+                ${tile('Watch hours', hours(totalSeconds()), `${hours(data.guest_seconds)} by people not signed in`)}
             </div>`;
         }
 
-        function chart() {
-            const days = [], counts = {};
-            for (let i = 29; i >= 0; i--) days.push(dayKey(Date.now() - i * DAY));
+        function signupChart() {
+            const counts = {};
             accounts.forEach(a => { const k = dayKey(a.created_at); counts[k] = (counts[k] || 0) + 1; });
-            const max = Math.max(1, ...days.map(d => counts[d] || 0));
-            const label = d => new Date(d + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
-            return `<section class="dash-card"><h2>Sign-ups, last 30 days</h2>
-                <div class="dash-bars">${days.map(d => {
-                    const c = counts[d] || 0;
-                    return `<div class="${c ? '' : 'zero'}" style="height:${(c / max) * 100}%" title="${label(d)}: ${c} sign-up${c === 1 ? '' : 's'}"></div>`;
-                }).join('')}</div>
-                <div class="dash-axis"><span>${label(days[0])}</span><span>Today</span></div>
-            </section>`;
+            return card('Sign-ups', bars(last30().map(d => ({ label: short(d), a: counts[d] || 0, tip: `${short(d)}: ${counts[d] || 0} sign-ups` }))), 'last 30 days');
+        }
+
+        function visitorChart() {
+            const by = daily();
+            return card('Visitors', bars(last30().map(d => {
+                const v = by[d] || { visitors: 0, signed_in: 0 };
+                return { label: short(d), a: v.signed_in, b: v.visitors - v.signed_in, tip: `${short(d)}: ${v.visitors} visitors, ${v.signed_in} signed in` };
+            }), { legend: ['Signed in', 'Not signed in'] }), 'last 30 days');
+        }
+
+        // ---- map -------------------------------------------------------------------------------
+
+        let topo = null;
+        const loadTopo = () => topo || (topo = Promise.all([fetch(WORLD).then(r => r.json()), fetch(US).then(r => r.json())]));
+
+        const mapCard = () => card('Where people are',
+            '<div class="dash-map"><div id="mapSvg"><p class="muted">Loading map…</p></div><div class="dash-places" id="places"></div></div>',
+            'visitors since tracking started · click a country');
+
+        function placeStats() {
+            const countries = {}, regions = {}, cities = {};
+            data.places.forEach(p => {
+                const c = countries[p.cc] = countries[p.cc] || { cc: p.cc, name: regionName(p.cc) || p.country, visitors: 0 };
+                c.visitors += p.visitors;
+                if (p.cc !== place) return;
+                const r = p.region || 'Unknown';
+                regions[r] = (regions[r] || 0) + p.visitors;
+                const k = (p.city || 'Unknown') + (p.region ? ', ' + p.region : '');
+                cities[k] = (cities[k] || 0) + p.visitors;
+            });
+            return { countries, regions, cities };
+        }
+
+        async function drawMap() {
+            const box = document.getElementById('mapSvg'), list = document.getElementById('places');
+            if (!box) return;
+            const { countries, regions, cities } = placeStats();
+            const sorted = obj => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+            const line = ([k, v]) => `<div><span>${esc(k)}</span><span>${n(v)}</span></div>`;
+            if (!data.places.length) list.innerHTML = '<p class="muted">No visits recorded yet. They show up as people open the site.</p>';
+            else if (!place) list.innerHTML = Object.values(countries).sort((a, b) => b.visitors - a.visitors).map(c =>
+                `<button data-cc="${esc(c.cc)}"><span>${esc(c.name)}</span><span>${n(c.visitors)}</span></button>`).join('');
+            else list.innerHTML = `<button class="back" data-cc="">← All countries</button>`
+                + `<h3>${esc(countries[place] ? countries[place].name : place)} · regions</h3>${sorted(regions).map(line).join('')}`
+                + `<h3>Cities</h3>${sorted(cities).slice(0, 30).map(line).join('')}`;
+
+            let world, us;
+            try {
+                [world, us] = await loadTopo();
+            } catch (e) {
+                box.innerHTML = '<p class="muted">Couldn\'t load the map.</p>';
+                return;
+            }
+            if (!window.d3 || !window.topojson) {
+                box.innerHTML = '<p class="muted">Couldn\'t load the map.</p>';
+                return;
+            }
+            const usView = place === 'US';
+            const features = usView ? topojson.feature(us, us.objects.states).features
+                : topojson.feature(world, world.objects.countries).features.filter(f => f.properties.name !== 'Antarctica');
+            const nameToCc = {};
+            Object.keys(countries).forEach(cc => { nameToCc[regionName(cc)] = cc; });
+            const ccOf = f => MAP_CC[f.properties.name] || nameToCc[f.properties.name];
+            const value = f => usView ? regions[f.properties.name] || 0 : (countries[ccOf(f)] || {}).visitors || 0;
+            const W = 960, H = usView ? 560 : 470;
+            const projection = (usView ? d3.geoAlbersUsa() : d3.geoNaturalEarth1()).fitSize([W, H], { type: 'FeatureCollection', features });
+            const path = d3.geoPath(projection);
+            const max = Math.max(1, ...features.map(value));
+            box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Map of visitors">${features.map(f => {
+                const v = value(f), cc = !usView && v ? ccOf(f) : '';
+                const fill = v ? ` style="fill:rgb(var(--accent-rgb) / ${(.25 + .75 * Math.sqrt(v / max)).toFixed(2)})"` : '';
+                return `<path class="land${cc ? ' hit' : ''}" d="${path(f)}"${fill} data-name="${esc(f.properties.name)}" data-v="${v}"${cc ? ` data-cc="${cc}"` : ''}></path>`;
+            }).join('')}</svg>`;
+        }
+
+        // ---- accounts --------------------------------------------------------------------------
+
+        const COLUMNS = [
+            { key: 'username', label: 'Username', get: a => a.username },
+            { key: 'created', label: 'Joined', get: a => a.created_at, show: a => date(a.created_at) },
+            { key: 'seen', label: 'Last active', get: a => a.last_seen || '', show: a => (within(a.last_seen, 10 / 1440) ? '<span class="dash-on"></span>' : '') + ago(a.last_seen) },
+            { key: 'seconds', label: 'Hours', num: true, get: a => a.counts.seconds, show: a => hours(a.counts.seconds) },
+            { key: 'movies', label: 'Movies', num: true, get: a => a.counts.movies },
+            { key: 'episodes', label: 'Episodes', num: true, get: a => a.counts.episodes },
+            { key: 'watchlist', label: 'My List', num: true, get: a => a.counts.watchlist },
+            { key: 'goat', label: 'GOAT', num: true, get: a => a.counts.goat },
+            { key: 'devices', label: 'Devices', num: true, get: a => a.devices.length },
+        ];
+
+        const pill = type => `<span class="dash-pill">${type === 'tv' ? 'TV' : 'Film'}</span>`;
+        const year = y => esc(String(y || '').slice(0, 4));
+        const when = t => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const playLabel = p => p.type === 'tv'
+            ? `${esc(p.title)} <span class="muted">S${esc(p.season)} E${esc(p.episode)}${p.episodeName ? ' · ' + esc(p.episodeName) : ''}</span>`
+            : `${esc(p.title)} <span class="muted">${year(p.year)}</span>`;
+
+        function detail(a) {
+            const count = shown[a.username] || 10;
+            const history = a.played.length
+                ? a.played.slice(0, count).map(p => `<div class="dash-line"><span>${pill(p.type)}${playLabel(p)}</span><span>${p.at ? when(p.at) : ''}</span></div>`).join('')
+                    + (a.played.length > count ? `<button class="dash-link" data-more="${esc(a.username)}">Show more (${n(a.played.length - count)} left)</button>` : '')
+                : '<p class="muted">Nothing played yet.</p>';
+            const devices = a.devices.length
+                ? a.devices.map(d => `<div class="dash-line"><span>${esc(d.device || 'Unknown device')}</span><span>active ${ago(d.last_seen)}</span></div>`).join('')
+                : '<p class="muted">Not signed in anywhere.</p>';
+            const list = items => items.length
+                ? items.slice(0, 40).map(i => `<div class="dash-line"><span>${pill(i.type)}${esc(i.title)}</span><span>${year(i.year)}</span></div>`).join('')
+                    + (items.length > 40 ? `<p class="muted">and ${n(items.length - 40)} more</p>` : '')
+                : '<p class="muted">Empty.</p>';
+            return `<div class="dash-detail">
+                <div><h3>Watch history · ${n(a.played.length)} plays</h3>${history}</div>
+                <div><h3>Devices</h3>${devices}${advanced ? `<h3>My List</h3>${list(a.lists.watchlist || [])}<h3>GOAT</h3>${list(a.lists.goat || [])}` : ''}</div>
+            </div>`;
         }
 
         function rows() {
@@ -165,36 +343,158 @@
                 });
             if (!list.length) return `<tr><td colspan="${COLUMNS.length}" class="muted">No accounts${query ? ' match' : ' yet'}.</td></tr>`;
             return list.map(a => {
-                const row = `<tr class="row" data-u="${esc(a.username)}">${COLUMNS.map(c =>
+                const row = `<tr class="row" data-u="${esc(a.username)}" aria-expanded="${open.has(a.username)}">${COLUMNS.map(c =>
                     `<td class="${c.num ? 'num' : ''}">${c.show ? c.show(a) : esc(c.get(a))}</td>`).join('')}</tr>`;
-                if (!open.has(a.username)) return row;
-                const devs = a.devices.length
-                    ? a.devices.map(d => `<div class="dash-dev"><span>${esc(d.device || 'Unknown device')}</span><span>signed in ${date(d.created_at)} · active ${ago(d.last_seen)}</span></div>`).join('')
-                    : 'Not signed in anywhere.';
-                return row + `<tr class="devs"><td colspan="${COLUMNS.length}">${devs}</td></tr>`;
+                return open.has(a.username) ? row + `<tr class="more"><td colspan="${COLUMNS.length}">${detail(a)}</td></tr>` : row;
             }).join('');
         }
 
-        function table() {
-            return `<section class="dash-card">
-                <div class="dash-tools"><h2>Accounts</h2><input id="q" type="search" placeholder="Search usernames" value="${esc(query)}" aria-label="Search usernames"></div>
+        const table = () => `<section class="dash-card">
+                <div class="dash-tools"><h2>Accounts<small>click one for its watch history</small></h2><input id="q" type="search" placeholder="Search usernames" value="${esc(query)}" aria-label="Search usernames"></div>
                 <div class="dash-scroll"><table>
                     <thead><tr>${COLUMNS.map(c => `<th data-k="${c.key}" class="${c.num ? 'num' : ''}"${c.key === sort.key ? ` aria-sort="${sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.label}</th>`).join('')}</tr></thead>
                     <tbody id="rows">${rows()}</tbody>
                 </table></div>
             </section>`;
+
+        // ---- advanced --------------------------------------------------------------------------
+
+        function simpleTable(head, body, empty) {
+            if (!body.length) return `<p class="muted">${empty}</p>`;
+            return `<div class="dash-scroll"><table><thead><tr>${head.map(h => `<th class="${h.num ? 'num' : ''}">${h.label}</th>`).join('')}</tr></thead>
+                <tbody>${body.map(r => `<tr>${r.map((c, i) => `<td class="${head[i].num ? 'num' : ''}${head[i].wrap ? ' wrap' : ''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         }
+
+        const ranked = obj => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+        const shares = (obj, total, empty = 'None yet.') => ranked(obj).slice(0, 10).map(([k, v]) =>
+            `<div class="dash-line"><span>${esc(k)}</span><span>${n(v)} · ${pct(v, total)}</span></div>`).join('') || `<p class="muted">${empty}</p>`;
+
+        function advancedView() {
+            const all = plays(), by = daily();
+            const views30 = data.daily.reduce((s, d) => s + d.views, 0);
+            const visitors30 = data.daily.reduce((s, d) => s + d.visitors, 0);
+            const new30 = data.daily.reduce((s, d) => s + d.new, 0);
+            const watchers = accounts.filter(a => a.counts.seconds > 0);
+            const devices = accounts.reduce((s, a) => s + a.devices.length, 0);
+
+            // Plays by day, hour and weekday, in this browser's time zone.
+            const playDays = {}, byHour = Array(24).fill(0), byWeekday = Array(7).fill(0);
+            all.forEach(p => {
+                const d = new Date(p.at);
+                playDays[dayKey(d)] = (playDays[dayKey(d)] || 0) + 1;
+                byHour[d.getHours()]++;
+                byWeekday[d.getDay()]++;
+            });
+            const hourName = h => (h % 12 || 12) + (h < 12 ? 'am' : 'pm');
+            const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            // Shows count once per show, not per episode.
+            const titles = {};
+            all.forEach(p => {
+                const t = titles[p.type + ':' + p.title] = titles[p.type + ':' + p.title] || { type: p.type, title: p.title, plays: 0, people: new Set() };
+                t.plays++;
+                t.people.add(p.user);
+            });
+            const topTitles = Object.values(titles).sort((a, b) => b.people.size - a.people.size || b.plays - a.plays).slice(0, 15);
+
+            const saved = {};
+            accounts.forEach(a => ['watchlist', 'goat'].forEach(sec => (a.lists[sec] || []).forEach(i => {
+                const s = saved[i.type + ':' + i.title] = saved[i.type + ':' + i.title] || { type: i.type, title: i.title, watchlist: 0, goat: 0 };
+                s[sec]++;
+            })));
+            const topSaved = Object.values(saved).sort((a, b) => b.watchlist + b.goat - a.watchlist - a.goat).slice(0, 15);
+
+            // Device names look like "Chrome on Mac", or just "TV".
+            const systems = {}, browsers = {};
+            accounts.forEach(a => a.devices.forEach(d => {
+                const [b, os] = (d.device || 'Unknown').includes(' on ') ? d.device.split(' on ') : [null, d.device || 'Unknown'];
+                systems[os] = (systems[os] || 0) + 1;
+                if (b) browsers[b] = (browsers[b] || 0) + 1;
+            }));
+
+            const { countries } = placeStats();
+            const placeTotal = Object.values(countries).reduce((s, c) => s + c.visitors, 0);
+            const cityRank = {};
+            data.places.forEach(p => {
+                const k = [p.city || 'Unknown', p.region, p.cc].filter(Boolean).join(', ');
+                cityRank[k] = (cityRank[k] || 0) + p.visitors;
+            });
+            const where = r => r.cc ? esc([r.city, r.region, r.cc].filter(Boolean).join(', ')) : '<span class="muted">Unknown</span>';
+            const perDay = (key, label, fmt = n) => bars(last30().map(d => ({ label: short(d), a: (by[d] || {})[key] || 0, tip: `${short(d)}: ${fmt((by[d] || {})[key] || 0)} ${label}` })));
+
+            return `<section class="dash-adv dash-stack">
+                <h2>Advanced</h2>
+                <p>Everything else that's recorded. Plays come from each account's history; times are in your time zone.</p>
+                <div class="dash-tiles">
+                    ${tile('Page views (30d)', n(views30), `${visitors30 ? (views30 / visitors30).toFixed(1) : 0} per visitor a day`)}
+                    ${tile('Returning visitors (30d)', pct(visitors30 - new30, visitors30), `${n(new30)} first-time visits`)}
+                    ${tile('Plays (30d)', n(all.filter(p => within(p.at, 30)).length), `${n(all.length)} all time`)}
+                    ${tile('Hours per watcher', hours(watchers.length ? watchers.reduce((s, a) => s + a.counts.seconds, 0) / watchers.length : 0), `${n(watchers.length)} of ${n(accounts.length)} accounts have watch time`)}
+                    ${tile('Devices per account', accounts.length ? (devices / accounts.length).toFixed(1) : '0', `${n(devices)} signed in`)}
+                    ${tile('Saved titles', n(accounts.reduce((s, a) => s + a.counts.watchlist + a.counts.goat, 0)), 'in My List and GOAT')}
+                </div>
+                <div class="dash-grid">
+                    ${card('Plays', bars(last30().map(d => ({ label: short(d), a: playDays[d] || 0, tip: `${short(d)}: ${playDays[d] || 0} plays` }))), 'last 30 days')}
+                    ${card('Watch time', perDay('seconds', 'played', hours), 'last 30 days, counted live by the site')}
+                    ${card('New and returning visitors', bars(last30().map(d => {
+                        const v = by[d] || { visitors: 0, new: 0 };
+                        return { label: short(d), a: v.new, b: v.visitors - v.new, tip: `${short(d)}: ${v.new} new, ${v.visitors - v.new} returning` };
+                    }), { legend: ['New', 'Returning'] }), 'last 30 days')}
+                    ${card('Page views', perDay('views', 'views'), 'last 30 days')}
+                    ${card('When people watch', bars(byHour.map((v, h) => ({ label: h % 6 ? '' : hourName(h), a: v, tip: `${hourName(h)}: ${v} plays` })), { axis: 'all' }), 'plays by hour')}
+                    ${card('Days people watch', bars(byWeekday.map((v, d) => ({ label: DOW[d], a: v, tip: `${DOW[d]}: ${v} plays` })), { axis: 'all' }), 'plays by weekday')}
+                </div>
+                <div class="dash-grid">
+                    ${card('Most watched', simpleTable([{ label: 'Title', wrap: true }, { label: 'People', num: true }, { label: 'Plays', num: true }],
+                        topTitles.map(t => [pill(t.type) + esc(t.title), n(t.people.size), n(t.plays)]), 'Nothing played yet.'))}
+                    ${card('Most saved', simpleTable([{ label: 'Title', wrap: true }, { label: 'My List', num: true }, { label: 'GOAT', num: true }],
+                        topSaved.map(t => [pill(t.type) + esc(t.title), n(t.watchlist), n(t.goat)]), 'Nothing saved yet.'))}
+                    ${card('Devices', shares(systems, devices) + `<p class="dash-sub">Browsers</p>` + shares(browsers, Object.values(browsers).reduce((s, v) => s + v, 0)))}
+                    ${card('Top places', shares(Object.fromEntries(Object.values(countries).map(c => [c.name, c.visitors])), placeTotal, 'No visits recorded yet.')
+                        + `<p class="dash-sub">Cities</p>` + shares(cityRank, placeTotal))}
+                </div>
+                ${card('Recent visitors', simpleTable([{ label: 'Who' }, { label: 'Where', wrap: true }, { label: 'Views', num: true }, { label: 'Watched', num: true }, { label: 'Days', num: true }, { label: 'Last seen' }],
+                    data.recent.map(r => [r.username ? `<b>${esc(r.username)}</b>` : '<span class="dash-guest">Guest</span>', where(r), n(r.views), hours(r.seconds), n(r.days), ago(r.last_at)]),
+                    'No visits recorded yet.'), 'latest 100, signed in or not')}
+            </section>`;
+        }
+
+        // ---- page ------------------------------------------------------------------------------
 
         function render() {
             app.innerHTML = `<header class="dash-head">
                     <div><h1>Movies Admin</h1><p>Signed in as ${esc(account.username)} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p></div>
-                    <div class="dash-btns"><a class="dash-btn" href="../">Back to site</a><button class="dash-btn" id="refresh">Refresh</button></div>
+                    <div class="dash-btns"><button class="dash-btn" id="advanced" aria-pressed="${advanced}">Advanced</button><a class="dash-btn" href="../">Back to site</a><button class="dash-btn" id="refresh">Refresh</button></div>
                 </header>
-                ${tiles()}${chart()}${table()}`;
+                <div class="dash-stack">
+                    ${tiles()}
+                    <div class="dash-grid">${signupChart()}${visitorChart()}</div>
+                    ${mapCard()}
+                    ${table()}
+                </div>
+                ${advanced ? advancedView() : ''}`;
+            drawMap();
         }
 
         app.addEventListener('click', e => {
             if (e.target.closest('#refresh')) return load();
+            if (e.target.closest('#advanced')) {
+                advanced = !advanced;
+                store.set('dash-advanced', advanced ? '1' : '0');
+                return render();
+            }
+            const cc = e.target.closest('[data-cc]');
+            if (cc) {
+                place = cc.dataset.cc || null;
+                tip.hidden = true;
+                return drawMap();
+            }
+            const more = e.target.closest('[data-more]');
+            if (more) {
+                shown[more.dataset.more] = (shown[more.dataset.more] || 10) + 25;
+                document.getElementById('rows').innerHTML = rows();
+                return;
+            }
             const th = e.target.closest('th[data-k]');
             if (th) {
                 const k = th.dataset.k;
@@ -213,6 +513,18 @@
             if (e.target.id !== 'q') return;
             query = e.target.value.trim().toLowerCase();
             document.getElementById('rows').innerHTML = rows();
+        });
+
+        app.addEventListener('mousemove', e => {
+            const land = e.target.closest('path.land');
+            if (!land) {
+                tip.hidden = true;
+                return;
+            }
+            tip.hidden = false;
+            tip.textContent = `${land.dataset.name}: ${n(+land.dataset.v)} visitor${land.dataset.v === '1' ? '' : 's'}`;
+            tip.style.left = e.clientX + 14 + 'px';
+            tip.style.top = e.clientY + 14 + 'px';
         });
 
         load();

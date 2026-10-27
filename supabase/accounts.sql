@@ -218,8 +218,58 @@ begin
     update device_codes set token = t, username = u where code = upper(trim(c));
 end $$;
 
--- The admin page (admin/index.html): every account with what's in it and its devices. Only a
--- session belonging to `jonathan` gets an answer.
+-- Visits: one row per browser per day, signed in or not, with roughly where it is (the site looks
+-- that up from the visitor's IP; see trackVisit in assets/js/sync.js).
+create table if not exists public.visits (
+    visitor uuid not null,
+    day date not null default current_date,
+    username text,
+    views int not null default 1,
+    country_code text,
+    country text,
+    region text,
+    city text,
+    first_at timestamptz not null default now(),
+    last_at timestamptz not null default now(),
+    primary key (visitor, day)
+);
+alter table public.visits enable row level security;
+-- Seconds of video actually played, counted by the site while a player reports its position.
+alter table public.visits add column if not exists watch_seconds int not null default 0;
+
+create or replace function public.track_visit(vid uuid, tok uuid default null, cc text default null,
+    country text default null, region text default null, city text default null) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+    u text;
+begin
+    if tok is not null then
+        select username into u from sessions where token = tok;
+    end if;
+    insert into visits as v (visitor, username, country_code, country, region, city)
+    values (vid, u, left(upper(cc), 2), left(country, 80), left(region, 80), left(city, 80))
+    on conflict (visitor, day) do update set
+        views = v.views + 1,
+        last_at = now(),
+        username = coalesce(excluded.username, v.username),
+        country_code = coalesce(excluded.country_code, v.country_code),
+        country = coalesce(excluded.country, v.country),
+        region = coalesce(excluded.region, v.region),
+        city = coalesce(excluded.city, v.city);
+end $$;
+
+drop function if exists public.add_watch_time(uuid, int);
+create or replace function public.add_watch_time(vid uuid, secs int, tok uuid default null) returns void
+language sql security definer set search_path = public, extensions as $$
+    insert into visits as v (visitor, username, views, watch_seconds)
+    values (vid, (select username from sessions where token = tok), 0, least(greatest(secs, 0), 600))
+    on conflict (visitor, day) do update set watch_seconds = v.watch_seconds + excluded.watch_seconds,
+        username = coalesce(excluded.username, v.username), last_at = now();
+$$;
+
+-- The admin page (admin/index.html): every account with what's in it, its devices and what it
+-- played, plus visits. Only a session belonging to `jonathan` gets an answer.
+drop function if exists public.admin_overview(uuid);
 create or replace function public.admin_overview(tok uuid) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -227,17 +277,66 @@ begin
         raise exception 'Not allowed';
     end if;
     update sessions set last_seen = now() where token = tok;
-    return (select coalesce(jsonb_agg(jsonb_build_object(
-        'username', a.username,
-        'created_at', a.created_at,
-        'updated_at', a.updated_at,
-        -- Removals stay in the document as markers, so only entries without `gone` count.
-        'counts', (select coalesce(jsonb_object_agg(sec, (select count(*) from jsonb_each(
-                case when jsonb_typeof(a.data -> sec) = 'object' then a.data -> sec else '{}' end) e
-                where not (e.value ? 'gone'))), '{}')
-            from unnest(array['watchlist', 'goat', 'history', 'watched']) sec),
-        'devices', (select coalesce(jsonb_agg(jsonb_build_object('device', s.device, 'created_at', s.created_at,
-                'last_seen', s.last_seen) order by s.last_seen desc), '[]')
-            from sessions s where s.username = a.username)
-    ) order by a.created_at desc), '[]') from accounts a);
+    return jsonb_build_object(
+        'accounts', (select coalesce(jsonb_agg(x.r order by x.created_at desc), '[]') from (
+            select a.created_at, jsonb_build_object(
+                'username', a.username,
+                'created_at', a.created_at,
+                'updated_at', a.updated_at,
+                'counts', jsonb_build_object(
+                    'watchlist', (select count(*) from jsonb_each(case when jsonb_typeof(a.data -> 'watchlist') = 'object' then a.data -> 'watchlist' else '{}' end) e where not (e.value ? 'gone')),
+                    'goat', (select count(*) from jsonb_each(case when jsonb_typeof(a.data -> 'goat') = 'object' then a.data -> 'goat' else '{}' end) e where not (e.value ? 'gone')),
+                    -- Watched marks are m-<movie> and e-<episode>; plays are in the log.
+                    'movies', (select count(distinct k) from (
+                        select substr(e.key, 3) k from jsonb_each(case when jsonb_typeof(a.data -> 'watched') = 'object' then a.data -> 'watched' else '{}' end) e
+                        where e.key like 'm-%' and not (e.value ? 'gone')
+                        union all
+                        select e.value -> 'item' ->> 'id' from jsonb_each(case when jsonb_typeof(a.data -> 'log') = 'object' then a.data -> 'log' else '{}' end) e
+                        where e.value -> 'item' ->> 'type' = 'movie' and not (e.value ? 'gone')) m),
+                    'episodes', (select count(distinct k) from (
+                        select substr(e.key, 3) k from jsonb_each(case when jsonb_typeof(a.data -> 'watched') = 'object' then a.data -> 'watched' else '{}' end) e
+                        where e.key like 'e-%' and not (e.value ? 'gone')
+                        union all
+                        select coalesce(e.value -> 'item' ->> 'episodeId', (e.value -> 'item' ->> 'id') || 's' || (e.value -> 'item' ->> 'season') || 'e' || (e.value -> 'item' ->> 'episode'))
+                        from jsonb_each(case when jsonb_typeof(a.data -> 'log') = 'object' then a.data -> 'log' else '{}' end) e
+                        where e.value -> 'item' ->> 'type' = 'tv' and not (e.value ? 'gone')) m),
+                    -- How far they got into everything with a resume point, in seconds.
+                    'seconds', (select coalesce(sum(least((e.value -> 'item' ->> 't')::numeric, coalesce((e.value -> 'item' ->> 'd')::numeric, 1e9))), 0)::bigint
+                        from jsonb_each(case when jsonb_typeof(a.data -> 'progress') = 'object' then a.data -> 'progress' else '{}' end) e
+                        where not (e.value ? 'gone') and jsonb_typeof(e.value -> 'item' -> 't') = 'number')),
+                'played', (select coalesce(jsonb_agg(p.i order by p.at desc), '[]') from (
+                    select jsonb_build_object('type', e.value -> 'item' -> 'type', 'title', e.value -> 'item' -> 'title',
+                        'year', e.value -> 'item' -> 'year', 'season', e.value -> 'item' -> 'season',
+                        'episode', e.value -> 'item' -> 'episode', 'episodeName', e.value -> 'item' -> 'episodeName',
+                        'at', e.value -> 'item' -> 'at') i, (e.value -> 'item' ->> 'at')::bigint at
+                    from jsonb_each(case when jsonb_typeof(a.data -> 'log') = 'object' then a.data -> 'log' else '{}' end) e
+                    where not (e.value ? 'gone')
+                    order by at desc nulls last limit 500) p),
+                'lists', (select jsonb_object_agg(sec, (select coalesce(jsonb_agg(jsonb_build_object('type', e.value -> 'item' -> 'type',
+                        'title', e.value -> 'item' -> 'title', 'year', e.value -> 'item' -> 'year') order by e.value ->> 'at' desc), '[]')
+                    from jsonb_each(case when jsonb_typeof(a.data -> sec) = 'object' then a.data -> sec else '{}' end) e
+                    where not (e.value ? 'gone'))) from unnest(array['watchlist', 'goat']) sec),
+                'devices', (select coalesce(jsonb_agg(jsonb_build_object('device', s.device, 'created_at', s.created_at,
+                        'last_seen', s.last_seen) order by s.last_seen desc), '[]')
+                    from sessions s where s.username = a.username)
+            ) r from accounts a) x),
+        'daily', (select coalesce(jsonb_agg(jsonb_build_object('day', d.day, 'visitors', d.visitors,
+                'signed_in', d.signed_in, 'views', d.views, 'new', d.new, 'seconds', d.seconds) order by d.day), '[]') from (
+            select day, count(*) visitors, count(username) signed_in, sum(views) views, sum(watch_seconds) seconds,
+                count(*) filter (where not exists (select 1 from visits o where o.visitor = v.visitor and o.day < v.day)) new
+            from visits v where day > current_date - 30 group by day) d),
+        'places', (select coalesce(jsonb_agg(to_jsonb(p)), '[]') from (
+            select country_code cc, max(country) country, region, city, count(distinct visitor) visitors,
+                count(distinct visitor) filter (where username is not null) signed_in
+            from visits where country_code is not null group by country_code, region, city) p),
+        'recent', (select coalesce(jsonb_agg(to_jsonb(r) order by r.last_at desc), '[]') from (
+            select username, country_code cc, region, city, sum(views) views, sum(watch_seconds) seconds, max(last_at) last_at, count(*) days
+            from visits group by visitor, username, country_code, region, city
+            order by max(last_at) desc limit 100) r),
+        'visitors', (select count(distinct visitor) from visits),
+        -- A guest is a browser that wasn't signed in on any of those days.
+        'visitors_30', (select count(distinct visitor) from visits where day > current_date - 30),
+        'guests_30', (select count(*) from (select visitor from visits where day > current_date - 30
+            group by visitor having count(username) = 0) g),
+        'guest_seconds', (select coalesce(sum(watch_seconds), 0) from visits where username is null));
 end $$;

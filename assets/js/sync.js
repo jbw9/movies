@@ -200,6 +200,43 @@
         return null;
     }
 
+    // ---- visits ----------------------------------------------------------------------------
+
+    // One visit per page load, signed in or not, with roughly where from, for the admin page
+    // (supabase/accounts.sql). The place is looked up from this browser's IP at most once a day.
+    const VISITOR = 'sm-visitor', GEO = 'sm-geo';
+    let visitor = ls.get(VISITOR, null);
+    if (!visitor) {
+        visitor = '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+        ls.set(VISITOR, visitor);
+    }
+
+    async function trackVisit() {
+        let geo = ls.get(GEO, null);
+        if (!geo || Date.now() - geo.at > 864e5) {
+            try {
+                const g = await (await fetch('https://get.geojs.io/v1/ip/geo.json')).json();
+                geo = { at: Date.now(), cc: g.country_code, country: g.country, region: g.region, city: g.city };
+                ls.set(GEO, geo);
+            } catch (e) {
+                geo = geo || {};
+            }
+        }
+        rpc('track_visit', { vid: visitor, tok: account ? account.token : null, cc: geo.cc || null,
+            country: geo.country || null, region: geo.region || null, city: geo.city || null }).catch(() => {});
+    }
+
+    let watchSecs = 0, lastPos = null;
+    function flushWatch() {
+        const secs = Math.round(watchSecs);
+        if (secs < 1) return;
+        watchSecs -= secs;
+        rpc('add_watch_time', { vid: visitor, secs, tok: account ? account.token : null }).catch(() => {});
+    }
+    setInterval(flushWatch, 60e3);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flushWatch(); });
+
     // Positions arrive about once a second; keep them, written every ten seconds.
     const pending = {};
     let flushTimer = null;
@@ -217,6 +254,9 @@
         if (!frame || e.source !== frame.contentWindow) return;
         const time = findTime(e.data), k = playing();
         if (!time || !k) return;
+        // Small forward steps are playback; bigger jumps are seeking and don't count as watching.
+        if (lastPos && lastPos.k === k && time.t > lastPos.t && time.t - lastPos.t <= 5) watchSecs += time.t - lastPos.t;
+        lastPos = { k, t: time.t };
         pending[k] = { t: Math.floor(time.t), d: Math.floor(time.d), at: Date.now() };
         if (!flushTimer) flushTimer = setTimeout(() => {
             writeProgress();
@@ -655,6 +695,7 @@
 
     // A signed-out device asks once it has finished loading, unless something is already open.
     avatar();
+    trackVisit();
     if (account) sync();
     else setTimeout(() => { if (!account && !document.querySelector('#modalRoot .modal')) openAuth('in'); }, 1500);
 
