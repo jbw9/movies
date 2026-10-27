@@ -1,4 +1,4 @@
-// Rotten Tomatoes score next to the ★ rating on movie and series pages and on their cards. TMDB doesn't
+// Rotten Tomatoes score next to the ★ rating on movie and series pages, their cards and episodes. TMDB doesn't
 // have it; the rt edge function (supabase/functions/rt) does, fetching each title from MDBList once for
 // everyone. Scores are also kept on the device for a week, and cards are only asked about once they
 // scroll into view, a batch at a time.
@@ -64,6 +64,20 @@
         view.querySelectorAll('.card:is([data-key^="movie:"], [data-key^="tv:"]):not([data-rt])').forEach(card => {
             card.dataset.rt = '1';
             seen.observe(card);
+        });
+
+        // Episode rows: the play button says show:season:episode.
+        view.querySelectorAll('[data-play-ep]').forEach(btn => {
+            const sub = btn.parentElement.querySelector('.ep-sub:not([data-rt])');
+            if (!sub) return;
+            sub.dataset.rt = '1';
+            score('ep:' + btn.dataset.playEp).then(rt => {
+                if (rt == null || !sub.isConnected) return;
+                const html = (sub.textContent.trim() ? ' · ' : '') + `<span class="rt" title="Rotten Tomatoes">${tomato(rt)}</span>`;
+                const expand = sub.querySelector('.ep-expand');
+                if (expand) expand.insertAdjacentHTML('beforebegin', html);
+                else sub.insertAdjacentHTML('beforeend', html);
+            });
         });
 
         const line = view.querySelector('.detail .facts-line:not([data-rt])');

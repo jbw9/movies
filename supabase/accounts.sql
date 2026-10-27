@@ -341,11 +341,13 @@ begin
         'guest_seconds', (select coalesce(sum(watch_seconds), 0) from visits where username is null));
 end $$;
 
--- Rotten Tomatoes scores by TMDB type:id ("movie:550"), shared by everyone. Only the rt edge function
--- (supabase/functions/rt) reads and writes it; score is null when Rotten Tomatoes has none.
+-- Rotten Tomatoes scores by TMDB type:id ("movie:550") or episode ("ep:2190:1:1"), shared by everyone.
+-- Only the rt edge function (supabase/functions/rt) reads and writes it; score is null when Rotten
+-- Tomatoes has none, and url is a series' Rotten Tomatoes address, where its episodes' pages are.
 create table if not exists public.rt_scores (
     key text primary key,
     score int,
     fetched_at timestamptz not null default now()
 );
 alter table public.rt_scores enable row level security;
+alter table public.rt_scores add column if not exists url text;
