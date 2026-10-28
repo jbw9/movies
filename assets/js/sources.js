@@ -1,9 +1,10 @@
 // Which source each title opens on. cinesrc has the fewest ads, so it goes first, but it can't
 // play everything: its only server with Succession answers every piece of the video with an
 // error, and its player sits through about a minute of retries before trying another one. So
-// when cinesrc hasn't loaded the video in 90 seconds, the player moves to the next source. Some
+// when a source hasn't started the video in 90 seconds, the player moves to the next one. Some
 // titles that play fine take a while to start, and only the first viewer waits: whatever plays
-// opens first for everyone after.
+// opens first for everyone after. Only sources that report their position are watched; for the
+// rest, silence doesn't mean it isn't playing.
 // Whatever plays is remembered per title, with the cinesrc server that worked, on this device
 // and for everyone (supabase/accounts.sql), and opens first next time. A title that moved off
 // cinesrc tries it again after a few days, in case it's been fixed.
@@ -64,6 +65,7 @@
 
     let frame = null, timer = null, started = 0, server = null, done = false;
     const picked = () => document.querySelector('#modalRoot #pSource');
+    const reports = source => source === FIRST || source === 'vidrift' || SM.sync.canResume(source);
 
     // A new player iframe (opened, switched, reloaded) starts over.
     new MutationObserver(() => {
@@ -74,26 +76,27 @@
         started = Date.now();
         server = null;
         done = false;
-        if (!iframe || !picked() || picked().value !== FIRST) return;
+        if (!iframe || !picked() || !reports(picked().value)) return;
+        const source = picked().value;
         timer = setTimeout(function check() {
             const select = picked(), next = select && select.options[(select.selectedIndex + 1) % select.options.length];
             if (frame !== iframe || !iframe.isConnected || !next || next.value === FIRST) return;
-            // Chrome holds back video in a tab that isn't showing, so that's no sign cinesrc failed.
+            // Chrome holds back video in a tab that isn't showing, so that's no sign it failed.
             if (document.hidden) return timer = setTimeout(check, WAIT);
-            console.log('[sources] cinesrc loaded nothing in 90s, switching to', next.value);
+            console.log('[sources]', source, 'played nothing in 90s, switching to', next.value);
             remember(playing, next.value, null, null, true);
-            ui.toast(`cinesrc couldn't load this. Switched to ${next.value}.`, { icon: 'info' });
+            ui.toast(`${source} couldn't load this. Switched to ${next.value}.`, { icon: 'info' });
             document.querySelector('#modalRoot #pNextSource').click();
         }, WAIT);
     }).observe(document.getElementById('modalRoot'), { childList: true, subtree: true });
 
-    // cinesrc says which server it picked and when the video has loaded; other players only
-    // report a time once they're playing.
+    // cinesrc says which server it picked and when the video has loaded; other players report
+    // their time, which counts once it's moving (vidrift reports 0 while it's still loading).
     window.addEventListener('message', e => {
         if (done || !frame || e.source !== frame.contentWindow || !e.data || !playing) return;
         const source = picked() && picked().value, d = e.data;
         if (d.type === 'cinesrc:sourceused') server = d.sourceId;
-        if (source === FIRST ? d.type !== 'cinesrc:loadedmetadata' : !SM.sync.findTime(d)) return;
+        if (source === FIRST ? d.type !== 'cinesrc:loadedmetadata' : !((SM.sync.findTime(d) || {}).t > 0)) return;
         done = true;
         clearTimeout(timer);
         remember(playing, source, source === FIRST ? server : null, Date.now() - started);
