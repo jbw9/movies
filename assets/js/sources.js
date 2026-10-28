@@ -1,14 +1,16 @@
 // Which source each title opens on. cinesrc has the fewest ads, so it goes first, but it can't
 // play everything: its only server with Succession answers every piece of the video with an
 // error, and its player sits through about a minute of retries before trying another one. So
-// when cinesrc hasn't loaded the video in 20 seconds, the player moves to the next source.
+// when cinesrc hasn't loaded the video in 90 seconds, the player moves to the next source. Some
+// titles that play fine take a while to start, and only the first viewer waits: whatever plays
+// opens first for everyone after.
 // Whatever plays is remembered per title, with the cinesrc server that worked, on this device
 // and for everyone (supabase/accounts.sql), and opens first next time. A title that moved off
 // cinesrc tries it again after a few days, in case it's been fixed.
 (SM => {
     const { ls, ui } = SM;
     const CACHE = 'sm-best-source', FIRST = 'cinesrc';
-    const WAIT = 20e3, RETRY_FIRST = 3 * 864e5, FRESH = 864e5;
+    const WAIT = 90e3, RETRY_FIRST = 3 * 864e5, FRESH = 864e5;
     const best = ls.get(CACHE, {}) || {}; // "tv:76331" -> { src, server, at, checked }
     let playing = null;
 
@@ -78,7 +80,7 @@
             if (frame !== iframe || !iframe.isConnected || !next || next.value === FIRST) return;
             // Chrome holds back video in a tab that isn't showing, so that's no sign cinesrc failed.
             if (document.hidden) return timer = setTimeout(check, WAIT);
-            console.log('[sources] cinesrc loaded nothing in 20s, switching to', next.value);
+            console.log('[sources] cinesrc loaded nothing in 90s, switching to', next.value);
             remember(playing, next.value, null, null, true);
             ui.toast(`cinesrc couldn't load this. Switched to ${next.value}.`, { icon: 'info' });
             document.querySelector('#modalRoot #pNextSource').click();
