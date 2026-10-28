@@ -156,6 +156,10 @@
         const source = modal.querySelector('#pSource').value;
         const tuned = source === 'cinesrc' || source === 'vidstuck';
         modal.querySelector('.tv-subs').style.display = tuned ? '' : 'none';
+        if (iframe && !iframe.dataset.tv && source === 'vidrift') {
+            iframe.dataset.tv = '1';
+            askForSound(iframe);
+        }
         if (!iframe || iframe.dataset.tv || !tuned) return;
         const url = new URL(iframe.dataset.src || iframe.src);
         if (source === 'cinesrc') {
@@ -195,7 +199,7 @@
     // If the player grabs focus anyway (a click, or its own script), take it straight back.
     window.addEventListener('blur', () => setTimeout(() => {
         const el = document.activeElement;
-        if (!el || el.tagName !== 'IFRAME') return;
+        if (!el || el.tagName !== 'IFRAME' || el === unmuting) return;
         el.blur();
         window.focus();
         focusEl(el.closest('.frame') || el.parentElement);
@@ -290,16 +294,63 @@
         if (e.data.type === 'cinesrc:play' && heldPause === frame.contentWindow) cinesrc(frame, 'pause');
     });
 
-    // Left and right on the video skip back and forward 15 seconds (cinesrc only).
+    // vidrift takes commands too, but starts muted and only turns sound on after a press inside
+    // it. So focus goes into it until OK is pressed there, then straight back out. It's
+    // sandboxed, so that press can't open anything. If sound isn't on after a while, focus comes
+    // back anyway (Back doesn't work while it's inside), and OK on the video asks again.
+    const SOUND_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    const vidrift = (frame, msg) => frame.contentWindow.postMessage(msg, 'https://embed.vidrift.net');
+    let unmuting = null, unmuteTimer = null, vidriftPaused = false, refusedAt = 0;
+    function askForSound(iframe) {
+        clearInterval(unmuteTimer);
+        unmuting = iframe;
+        osd(`${SOUND_ICON}<span>Press OK for sound</span>`);
+        iframe.focus();
+        const until = Date.now() + 15e3;
+        unmuteTimer = setInterval(() => {
+            if (unmuting !== iframe || !iframe.isConnected || Date.now() > until) return soundAsked(iframe);
+            vidrift(iframe, { type: 'vidrift:set', muted: false });
+            vidrift(iframe, { type: 'vidrift:get-state' });
+        }, 500);
+    }
+    function soundAsked(iframe) {
+        clearInterval(unmuteTimer);
+        if (unmuting !== iframe) return;
+        unmuting = null;
+        osd('');
+        if (iframe.isConnected) {
+            iframe.blur();
+            window.focus();
+            focusEl(iframe.closest('.frame'));
+        }
+    }
+    window.addEventListener('message', e => {
+        const frame = document.querySelector('#modalRoot #pFrame iframe');
+        if (!frame || e.source !== frame.contentWindow || e.origin !== 'https://embed.vidrift.net' || !e.data) return;
+        if (e.data.type === 'vidrift:paused' || e.data.type === 'vidrift:unpaused') vidriftPaused = e.data.type === 'vidrift:paused';
+        if (e.data.type === 'vidrift:command-error' && e.data.reason === 'click-required') refusedAt = Date.now();
+        // Right as it starts it reports unmuted before muting itself, so sound only counts once
+        // the video is moving and turning it on hasn't been refused for a second.
+        if (e.data.type === 'vidrift:state' && !e.data.muted && !e.data.paused && e.data.currentTime > 0 && Date.now() - refusedAt > 1000) {
+            frame.dataset.sound = '1';
+            soundAsked(frame);
+        }
+    });
+
+    // Left and right on the video skip back and forward 15 seconds (cinesrc and vidrift).
     function skip(dir) {
         const modal = playerModal();
         const frame = modal && modal.querySelector('#pFrame iframe');
-        if (!frame || modal.querySelector('#pSource').value !== 'cinesrc') return false;
+        const source = frame && modal.querySelector('#pSource').value;
+        if (source !== 'cinesrc' && source !== 'vidrift') return false;
         if (!isFull() && !document.activeElement.matches('.modal-player .frame')) return false;
-        if (cinesrcClock !== frame.contentWindow) return true;
         const step = dir === 'right' ? 15 : -15;
-        cinesrcAt = Math.max(0, cinesrcAt + step);
-        cinesrc(frame, 'seek', [cinesrcAt]);
+        if (source === 'vidrift') vidrift(frame, { type: 'vidrift:skip', seconds: step });
+        else {
+            if (cinesrcClock !== frame.contentWindow) return true;
+            cinesrcAt = Math.max(0, cinesrcAt + step);
+            cinesrc(frame, 'seek', [cinesrcAt]);
+        }
         osd(`${SKIP_ICON(step)}<span>${step > 0 ? '+' : '−'}15s</span>`, 900);
         return true;
     }
@@ -307,6 +358,12 @@
     function togglePause() {
         const modal = playerModal();
         const frame = modal && modal.querySelector('#pFrame iframe');
+        if (frame && modal.querySelector('#pSource').value === 'vidrift') {
+            if (!frame.dataset.sound) return askForSound(frame);
+            vidrift(frame, { type: vidriftPaused ? 'vidrift:play' : 'vidrift:pause' });
+            osd(vidriftPaused ? '' : PAUSE_ICON);
+            return;
+        }
         if (frame && modal.querySelector('#pSource').value === 'cinesrc') {
             const resume = heldPause === frame.contentWindow;
             heldPause = resume ? null : frame.contentWindow;

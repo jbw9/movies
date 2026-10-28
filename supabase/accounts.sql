@@ -351,3 +351,29 @@ create table if not exists public.rt_scores (
 );
 alter table public.rt_scores enable row level security;
 alter table public.rt_scores add column if not exists url text;
+
+-- The source that last played each title ("tv:76331", "movie:550", and "tv:76331@tv" for the TV
+-- app), shared by everyone so the player opens on it (assets/js/sources.js). server is the
+-- cinesrc server that worked, which cinesrc can be told to try first; load_ms is how long the
+-- video took to load.
+create table if not exists public.best_sources (
+    key text primary key,
+    source text not null,
+    server text,
+    load_ms int,
+    updated_at timestamptz not null default now()
+);
+alter table public.best_sources enable row level security;
+
+create or replace function public.best_source(k text) returns jsonb
+language sql stable security definer set search_path = public, extensions as $$
+    select jsonb_build_object('src', source, 'server', server, 'at', updated_at) from best_sources where key = k;
+$$;
+
+create or replace function public.report_source(k text, src text, srv text default null, ms int default null) returns void
+language sql security definer set search_path = public, extensions as $$
+    insert into best_sources (key, source, server, load_ms)
+    select k, left(src, 30), left(srv, 30), ms where k ~ '^(movie|tv):[0-9]+(@tv)?$'
+    on conflict (key) do update set source = excluded.source, server = excluded.server,
+        load_ms = excluded.load_ms, updated_at = now();
+$$;

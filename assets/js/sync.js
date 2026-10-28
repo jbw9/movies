@@ -249,9 +249,16 @@
         Object.keys(pending).forEach(k => delete pending[k]);
         ls.set(PROGRESS, all);
     }
+    // vidrift has no start-time parameter; it takes the resume point by message, once per player.
+    let resumed = null;
     window.addEventListener('message', e => {
         const frame = document.querySelector('#modalRoot #pFrame iframe');
         if (!frame || e.source !== frame.contentWindow) return;
+        if (e.origin === 'https://embed.vidrift.net' && resumed !== frame && playing()) {
+            resumed = frame;
+            const at = resumeAt(playing());
+            if (at) e.source.postMessage({ type: 'vidrift:resume', currentTime: at }, e.origin);
+        }
         const time = findTime(e.data), k = playing();
         if (!time || !k) return;
         // Small forward steps are playback; bigger jumps are seeking and don't count as watching.
@@ -699,5 +706,5 @@
     if (account) sync();
     else setTimeout(() => { if (!account && !document.querySelector('#modalRoot .modal')) openAuth('in'); }, 1500);
 
-    SM.sync = { now: sync, withResume, canResume: source => !!START_PARAM[source], openAuth, avatar };
+    SM.sync = { now: sync, withResume, canResume: source => !!START_PARAM[source], openAuth, avatar, rpc, findTime };
 })(window.SM);
