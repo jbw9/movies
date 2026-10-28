@@ -249,12 +249,15 @@
         Object.keys(pending).forEach(k => delete pending[k]);
         ls.set(PROGRESS, all);
     }
-    // vidrift has no start-time parameter; it takes the resume point by message, once per player.
+    // vidrift has no start-time parameter; it takes the resume point by message, once per player,
+    // and only once it's playing: before that it ignores it, and the 0 it reports would replace
+    // the saved position.
     let resumed = null;
     window.addEventListener('message', e => {
         const frame = document.querySelector('#modalRoot #pFrame iframe');
         if (!frame || e.source !== frame.contentWindow) return;
         if (e.origin === 'https://embed.vidrift.net' && resumed !== frame && playing()) {
+            if (!e.data || (e.data.type !== 'vidrift:unpaused' && e.data.type !== 'vidrift:progress')) return;
             resumed = frame;
             const at = resumeAt(playing());
             if (at) e.source.postMessage({ type: 'vidrift:resume', currentTime: at }, e.origin);
