@@ -149,7 +149,7 @@
                 if (old) delete old.dataset.tv;
                 tunePlayer(modal);
             });
-            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 15 seconds. Back goes to Home.`;
+            modal.querySelector('.player-hint').innerHTML = `${icon('info')} On the video: OK to pause, twice for full screen, three times to reload. Left and right skip 15 seconds. Back closes the player.`;
             focusEl(modal.querySelector('#pFrame'));
         }
         const iframe = modal.querySelector('#pFrame iframe');
@@ -707,17 +707,14 @@
 
     // ---- remote keys ---------------------------------------------------------------------------
 
-    // Back always heads home: the player or any page goes to the home page, and the home page
-    // home goes to the launcher. Pop-ups and dropdowns just close.
+    // Back closes the player or a pop-up and stays on the page underneath (an episode card opens
+    // its series page there). Any other page goes home, and home goes to the launcher.
     function back() {
         if (closePicker()) return;
         const modal = document.querySelector('#modalRoot .modal');
-        if (modal) {
-            ui.closeModal();
-            if (!modal.classList.contains('modal-player')) return;
-        }
+        if (modal) return ui.closeModal();
         if (document.body.dataset.route !== 'home') location.hash = '#/';
-        else if (!modal) exitApp();
+        else exitApp();
     }
 
     function activate() {
