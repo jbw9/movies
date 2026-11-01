@@ -173,9 +173,9 @@
 
     const progressKey = (type, id, season, episode) => type === 'tv' ? `tv-${id}-s${season}e${episode}` : `movie-${id}`;
 
-    // The player always records what it opens in history first, so the newest entry is what's on.
+    // History only gets the play once it's been watched a while (player.js), so ask the player.
     function playing() {
-        const h = library.history()[0];
+        const h = SM.player && SM.player.now;
         return h ? progressKey(h.type, h.id, h.season, h.episode) : null;
     }
 
