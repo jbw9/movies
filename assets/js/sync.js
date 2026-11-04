@@ -158,16 +158,34 @@
         return running;
     }
 
-    let timer = null;
+    // On the TV a sync under a video competes with the player for the TV's slow CPU, so syncs
+    // wait for the player to close.
+    const underVideo = () => isTV() && !!document.querySelector('#modalRoot .modal-player');
+    let timer = null, held = false;
     function soon(ms) {
         if (!account) return;
         clearTimeout(timer);
-        timer = setTimeout(sync, ms);
+        timer = setTimeout(() => underVideo() ? (held = true) : sync(), ms);
     }
 
     SM.on('library', () => { if (!applying) soon(2500); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
-    setInterval(() => { if (!document.hidden) sync(); }, 3 * 60e3);
+    SM.on('modal-close', () => {
+        if (!held) return;
+        held = false;
+        soon(1000);
+    });
+    // The TV keeps Movies open in the background, so coming back to it is when changes made
+    // elsewhere show up: the page is drawn again with them, and with fresh TMDB data.
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        if (isTV()) SM.api.forget();
+        sync().then(() => { if (isTV() && !document.querySelector('#modalRoot .modal')) SM.route(); });
+    });
+    setInterval(() => {
+        if (document.hidden) return;
+        if (underVideo()) held = true;
+        else sync();
+    }, 3 * 60e3);
 
     // ---- resume points ---------------------------------------------------------------------
 

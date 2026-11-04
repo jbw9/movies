@@ -221,12 +221,12 @@ html:not(.tv) .tv-rail { display: none; }
     top: 0;
     bottom: 0;
     left: var(--tv-rail);
-    width: 500px;
-    padding: 110px 36px 40px;
+    width: 1000px;
+    padding: 90px 56px 40px;
     background: var(--bg-2);
     border-right: 1px solid var(--line);
 }
-.tv body[data-route="search"] #view { margin-left: 500px; }
+.tv body[data-route="search"] #view { margin-left: 1000px; }
 .tv-query {
     display: flex;
     align-items: center;
@@ -240,26 +240,63 @@ html:not(.tv) .tv-rail { display: none; }
 }
 .tv-query .ic { width: 30px; height: 30px; flex: none; color: var(--muted); }
 .tv-query .empty { color: var(--muted); font-size: 22px; font-weight: 500; }
-.tv-words { display: flex; gap: 8px; margin-bottom: 8px; overflow: hidden; }
-.tv-words:empty, .tv-next:empty { display: none; }
-.tv .tv-words button { flex: 0 1 auto; display: block; height: 56px; padding: 0 18px; font-size: 22px; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv-next { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tv .tv-next button { background: rgb(var(--accent-rgb) / .16); color: var(--accent); }
-.tv-keygrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-.tv-keyrow { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+/* Whole titles that match, above the keys, like Samsung's suggestion bar */
+.tv-words { display: flex; gap: 12px; min-height: 56px; margin-bottom: 30px; overflow: hidden; }
+.tv .tv-words button { flex: 0 1 auto; display: block; height: 56px; padding: 0 18px; font-size: 22px; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); }
+.tv-keygrid { position: relative; display: grid; grid-template-columns: repeat(10, 1fr); gap: 28px 24px; }
+.tv-keyrow { display: grid; grid-template-columns: 4fr 2fr 2fr 2fr; gap: 24px; margin-top: 28px; }
 .tv-keys button {
     display: grid;
     place-items: center;
-    height: 66px;
+    height: 74px;
     border: 0;
     border-radius: 12px;
     background: var(--surface);
     color: var(--text);
     font: 700 26px var(--body);
-    text-transform: uppercase;
     transition: transform .12s var(--ease), background .12s;
 }
 .tv-keys .ic { width: 28px; height: 28px; }
+/* The likeliest next keys, in circles around the key just typed (tv.js) */
+.tv .tv-keys .tv-bubble {
+    position: absolute;
+    z-index: 2;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    background: var(--bg-2);
+    box-shadow: inset 0 0 0 2px #fff;
+    font-size: 24px;
+}
+.tv .tv-keys .tv-bubble.tv-focus { transform: scale(1.15); box-shadow: none; }
+.tv-bubble .ic { width: 26px; height: 26px; }
+.tv-space { width: 22px; height: 8px; border: 2.5px solid currentColor; border-top: 0; border-radius: 0 0 3px 3px; }
+
+/* Pull to refresh: Up three times at the top (tv.js) */
+.tv-pull { display: none; }
+.tv .tv-pull {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    z-index: 300;
+    top: 28px;
+    left: 50%;
+    width: 72px;
+    height: 72px;
+    margin-left: -36px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--pull, 0) * 360deg), #ffffff33 0);
+    opacity: 0;
+    transform: translateY(-110px);
+    transition: transform .25s var(--ease), opacity .25s;
+    pointer-events: none;
+}
+.tv .tv-pull::before { content: ""; position: absolute; top: 6px; right: 6px; bottom: 6px; left: 6px; border-radius: 50%; background: var(--bg-2); }
+.tv .tv-pull svg { position: relative; width: 34px; height: 34px; color: #fff; }
+.tv .tv-pull.on { opacity: 1; transform: none; }
+.tv .tv-pull.go svg { animation: tv-spin .6s linear infinite; }
+@keyframes tv-spin { to { transform: rotate(360deg); } }
 
 /* Full-screen picker replacing dropdowns */
 .tv #tvPicker {
@@ -289,7 +326,13 @@ html:not(.tv) .tv-rail { display: none; }
 }
 .tv-picker button.on { box-shadow: inset 0 0 0 3px var(--accent); }
 
-/* Player: big video tile, OK twice for full screen (tv.js) */
+/* Player: big video tile, OK twice for full screen (tv.js). Nothing moves behind it: the TV's
+   CPU is shared with the video, and any animation there costs it frames. */
+.tv body.tv-video #view, .tv body.tv-video .tv-rail { visibility: hidden; }
+.tv body.tv-video #view * { animation: none !important; transition: none !important; }
+.tv body.tv-video .modal-backdrop { background: #000; }
+.tv .modal-player { box-shadow: none; }
+.tv .modal-player .frame { animation: none; background: #000; }
 .tv .modal-player { width: calc(100vw - 120px); }
 .tv .modal-player .frame { max-height: calc(100vh - 290px); }
 .tv .modal-player .frame.tv-focus { outline: 5px solid #fff; outline-offset: -5px; }

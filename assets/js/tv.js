@@ -53,8 +53,10 @@
 
     function exitApp() {
         if (!isTizen) return ui.toast('Preview: this would return to the launcher', { icon: 'info' });
+        // Movies stays open behind the launcher, so opening it again is instant; it refreshes
+        // itself when it comes back (sync.js).
         const quit = () => { try { tizen.application.getCurrentApplication().exit(); } catch (e) {} };
-        try { tizen.application.launch(LAUNCHER_ID, quit, quit); } catch (e) { quit(); }
+        try { tizen.application.launch(LAUNCHER_ID, () => {}, quit); } catch (e) { quit(); }
     }
 
     // ---- "Where to watch" sheet, used when there are no embed sources ------------------
@@ -135,6 +137,29 @@
     const playerModal = () => document.querySelector('#modalRoot .modal-player');
     const isFull = () => !!document.querySelector('#modalRoot .modal-player.tv-full');
 
+    function withSubtitles(src, source) {
+        if (source !== 'cinesrc' && source !== 'vidstuck') return src;
+        const url = new URL(src);
+        if (source === 'cinesrc') {
+            url.searchParams.set('subtitles', subtitle() === 'Off' ? 'off' : 'auto');
+            if (subtitle() === 'Off') url.searchParams.delete('subtitlelang');
+            else url.searchParams.set('subtitlelang', subtitle());
+        } else {
+            // vidstuck already autoplays with sound; autoplay=true in the URL would start it muted.
+            url.searchParams.delete('autoplay');
+            if (subtitle() === 'Off') url.searchParams.delete('subtitle');
+            else url.searchParams.set('subtitle', subtitle());
+        }
+        return url.href;
+    }
+
+    // player.js builds the URL through SM.sources.withServer, so subtitles go in there.
+    let built = null;
+    if (SM.sources) {
+        const withServer = SM.sources.withServer;
+        SM.sources.withServer = (src, source, info) => (built = withServer(withSubtitles(src, source), source, info));
+    }
+
     function tunePlayer(modal) {
         if (!modal.dataset.tv) {
             modal.dataset.tv = '1';
@@ -157,24 +182,20 @@
         const tuned = source === 'cinesrc' || source === 'vidstuck';
         modal.querySelector('.tv-subs').style.display = tuned ? '' : 'none';
         if (!iframe || iframe.dataset.tv || !tuned) return;
-        const url = new URL(iframe.dataset.src || iframe.src);
-        if (source === 'cinesrc') {
-            url.searchParams.set('subtitles', subtitle() === 'Off' ? 'off' : 'auto');
-            if (subtitle() === 'Off') url.searchParams.delete('subtitlelang');
-            else url.searchParams.set('subtitlelang', subtitle());
-        } else {
-            // vidstuck already autoplays with sound; autoplay=true in the URL would start it muted.
-            url.searchParams.delete('autoplay');
-            if (subtitle() === 'Off') url.searchParams.delete('subtitle');
-            else url.searchParams.set('subtitle', subtitle());
+        // The player's own iframe already has the subtitles in it (below), so it loads only once.
+        if (iframe.getAttribute('src') === built) {
+            built = null;
+            iframe.dataset.tv = '1';
+            iframe.tabIndex = -1;
+            return;
         }
         // A fresh iframe, so its load guard starts counting from zero.
         const fresh = iframe.cloneNode();
         // Start where this account left off (sync.js).
-        fresh.src = fresh.dataset.src = SM.sync ? SM.sync.withResume(url.href, source) : url.href;
+        const url = withSubtitles(iframe.dataset.src || iframe.src, source);
+        fresh.src = fresh.dataset.src = SM.sync ? SM.sync.withResume(url, source) : url;
         fresh.dataset.n = '0';
         fresh.dataset.tv = '1';
-        fresh.dataset.resume = '1';
         fresh.tabIndex = -1;
         // vidstuck refuses to play in any sandboxed frame (it probes document.domain). Without the
         // sandbox it still can't open popups or redirect the app: focus, and with it user
@@ -186,6 +207,8 @@
     new MutationObserver(() => {
         const modal = playerModal();
         if (modal) tunePlayer(modal);
+        // The page behind the video is hidden, so the TV only has the video to draw (tv.css).
+        document.body.classList.toggle('tv-video', !!modal);
         // YouTube won't play in the TV app: it runs from file://, so YouTube gets no referrer
         // and shows "Video player configuration error". The hosted trailer page embeds it instead.
         const trailer = location.protocol === 'file:' && document.querySelector('#modalRoot .modal-video iframe[src*="youtube"]');
@@ -215,7 +238,6 @@
         if (!old) return resumePlayer();
         // Without these marks the player is tuned again, with the latest resume point.
         delete old.dataset.tv;
-        delete old.dataset.resume;
         old.replaceWith(old.cloneNode());
         osd('');
         ui.toast('Reloading the video', { icon: 'info' });
@@ -233,7 +255,6 @@
         }
         pausedFrame = frame.cloneNode();
         delete pausedFrame.dataset.tv;
-        delete pausedFrame.dataset.resume;
         const msg = document.createElement('div');
         msg.className = 'frame-msg tv-paused';
         msg.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><span>Paused. OK to keep watching.</span>';
@@ -394,22 +415,30 @@
     rail.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === nav));
 
     // ---- on-screen keyboard for search ----------------------------------------------------
+    // Samsung's TV keyboard: QWERTY, focus stays on the key you typed, and the likeliest next
+    // keys sit in circles around it (predicted from the titles matching what's typed). One press
+    // goes into a circle, OK types it and focus moves to that letter's own key; pressing on past
+    // the circle reaches the key underneath. ✓ goes to the results. Whole titles that match are
+    // in a row above.
 
+    const ROWS = ['1234567890', 'qwertyuiop', "asdfghjkl'", 'zxcvbnm,.-'];
     const keys = document.createElement('div');
     keys.className = 'tv-keys';
     keys.innerHTML = `
         <div class="tv-query">${icon('search')}<span id="tvQuery"></span></div>
         <div class="tv-words"></div>
-        <div class="tv-next"></div>
-        <div class="tv-keygrid">${'abcdefghijklmnopqrstuvwxyz1234567890'.split('').map(c => `<button type="button" data-k="${c}">${c}</button>`).join('')}</div>
+        <div class="tv-keygrid">${ROWS.map(row => [...row].map(c => `<button type="button" data-k="${esc(c)}">${esc(c)}</button>`).join('')).join('')}</div>
         <div class="tv-keyrow">
             <button type="button" data-k=" ">Space</button>
             <button type="button" data-k="del" aria-label="Delete">${icon('left')}</button>
             <button type="button" data-k="clear">Clear</button>
+            <button type="button" data-k="done" aria-label="Show results">${icon('check')}</button>
         </div>`;
     document.body.appendChild(keys);
+    const grid = keys.querySelector('.tv-keygrid');
+    const keyFor = c => [...grid.querySelectorAll('[data-k]')].find(b => b.dataset.k === c) || null;
 
-    let query = '', searchTimer = null;
+    let query = '', searchTimer = null, toResults = false;
     const showQuery = () => {
         const out = document.getElementById('tvQuery');
         out.textContent = query || 'Search movies, series, people';
@@ -423,8 +452,55 @@
     queryFromUrl();
     window.addEventListener('hashchange', () => { if (location.hash.startsWith('#/search')) queryFromUrl(); });
 
-    // Predict what comes next from the titles matching what's typed so far: the likeliest next
-    // letters (focus jumps to the best one, so OK-OK-OK spells it out) and whole-word completions.
+    function search(now) {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            const q = query.trim();
+            history.replaceState(history.state, '', '#/search' + (q ? '?q=' + encodeURIComponent(q) : ''));
+            SM.route();
+        }, now ? 0 : 450);
+    }
+
+    // The circles: where each one goes around the key it belongs to.
+    let anchor = null;
+    const clearBubbles = () => {
+        grid.querySelectorAll('.tv-bubble').forEach(b => b.remove());
+        anchor = null;
+    };
+    function showBubbles(key, picks) {
+        clearBubbles();
+        const i = [...grid.children].indexOf(key), row = Math.floor(i / 10), col = i % 10;
+        const open = { up: row > 0, down: true, left: col > 0, right: col < 9 };
+        // ✓ goes below and Space above, as on Samsung's keyboard; letters fill the rest, best first.
+        const spots = {};
+        if (picks.includes('done') && open.down) spots.down = 'done';
+        if (picks.includes(' ') && open.up) spots.up = ' ';
+        picks.filter(c => c !== 'done' && c !== ' ').forEach(c => {
+            const d = ['right', 'left', 'up', 'down'].find(d => open[d] && !spots[d]);
+            if (d) spots[d] = c;
+        });
+        const x = key.offsetLeft, y = key.offsetTop, w = key.offsetWidth, h = key.offsetHeight;
+        // Centred in the gap between the key and its neighbour.
+        const style = getComputedStyle(grid), gx = parseFloat(style.columnGap) || 0, gy = parseFloat(style.rowGap) || 0;
+        const at = { up: [x + w / 2, y - gy / 2], down: [x + w / 2, y + h + gy / 2], left: [x - gx / 2, y + h / 2], right: [x + w + gx / 2, y + h / 2] };
+        Object.keys(spots).forEach(d => {
+            const c = spots[d], b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'tv-bubble';
+            b.dataset.k = c;
+            b.dataset.bubble = d;
+            b.innerHTML = c === 'done' ? icon('check') : c === ' ' ? '<span class="tv-space"></span>' : esc(c);
+            b.style.left = at[d][0] + 'px';
+            b.style.top = at[d][1] + 'px';
+            grid.appendChild(b);
+        });
+        anchor = key;
+    }
+    // Moving off the key and its circles puts them away.
+    document.addEventListener('focusin', e => {
+        if (anchor && e.target !== anchor && !e.target.classList.contains('tv-bubble')) clearBubbles();
+    });
+
     const plain = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ');
     // TMDB search is poor for one or two letters, so popular titles are mixed in.
     let pool = null;
@@ -433,13 +509,13 @@
             .flatMap(p => [1, 2].map(page => api.tmdb(p, { page }).catch(() => null)))
     ).then(pages => pages.flatMap(r => (r && r.results) || [])));
     let predictToken = 0;
-    async function predict(pressed) {
-        const words = keys.querySelector('.tv-words'), next = keys.querySelector('.tv-next');
+    async function predict(key) {
+        const words = keys.querySelector('.tv-words');
         const q = plain(query).replace(/^ /, '');
         const token = ++predictToken;
         if (!q.trim()) {
-            words.innerHTML = next.innerHTML = '';
-            return;
+            words.innerHTML = '';
+            return clearBubbles();
         }
         let titles;
         try {
@@ -447,54 +523,53 @@
             const seen = new Set();
             titles = [...(res.results || []), ...popular].filter(r => {
                 const id = r.media_type + r.id;
-                return !seen.has(id) && seen.add(id);
+                return (r.title || r.name) && !seen.has(id) && seen.add(id);
             });
         } catch (e) {
             return;
         }
         if (token !== predictToken) return;
 
-        const letters = {}, completions = {};
+        const next = {}, matches = {};
         const last = q.split(' ').pop();
         titles.forEach(r => {
-            const title = plain(r.title || r.name || '');
+            const name = r.title || r.name, title = plain(name);
             const weight = Math.log10(2 + (r.popularity || 0));
             // The typed text can continue the whole title or any word inside it.
             const starts = [0, ...[...title.matchAll(/ /g)].map(m => m.index + 1)];
-            const from = starts.find(s => title.startsWith(q, s) && title.length > s + q.length);
-            if (from !== undefined) {
-                const ch = title[from + q.length];
-                // A space right after one letter is almost always an initial ("L.A. Law"), rarely what's meant.
-                if (ch !== ' ' || last.length > 1) letters[ch] = (letters[ch] || 0) + weight;
-            }
-            if (last) title.split(' ').forEach(w => {
-                if (w.length > 2 && w.length > last.length && w.startsWith(last)) completions[w] = (completions[w] || 0) + weight;
-            });
+            const from = starts.find(s => title.startsWith(q, s));
+            if (from === undefined) return;
+            const ch = title[from + q.length];
+            // A space right after one letter is almost always an initial ("L.A. Law"), rarely what's meant.
+            if (ch === undefined) next.done = (next.done || 0) + weight;
+            else if (ch !== ' ' || last.length > 1) next[ch] = (next[ch] || 0) + weight;
+            if (title.length > q.length && !matches[name]) matches[name] = weight;
         });
         const top = (scores, n) => Object.keys(scores).sort((a, b) => scores[b] - scores[a]).slice(0, n);
-        words.innerHTML = top(completions, 3).map(w => `<button type="button" data-word="${esc(w)}">${esc(w)}</button>`).join('');
-        next.innerHTML = top(letters, 6).map(c => `<button type="button" data-k="${esc(c)}">${c === ' ' ? 'Space' : esc(c)}</button>`).join('');
-
-        const cur = document.activeElement;
-        if (cur === pressed || !usable(cur)) {
-            focusEl(next.querySelector('button') || words.querySelector('button') || keys.querySelector(`.tv-keygrid [data-k="${q.slice(-1)}"]`) || keys.querySelector('.tv-keygrid button'));
-        }
+        words.innerHTML = top(matches, 3).map(t => `<button type="button" data-title="${esc(t)}">${esc(t)}</button>`).join('');
+        if (key && document.activeElement === key && grid.contains(key)) showBubbles(key, top(next, 4));
     }
 
     keys.addEventListener('click', e => {
-        const b = e.target.closest('[data-k], [data-word]');
+        const b = e.target.closest('[data-k], [data-title]');
         if (!b) return;
         const k = b.dataset.k;
-        if (b.dataset.word) query = query.replace(/\S*$/, b.dataset.word + ' ');
-        else query = k === 'del' ? query.slice(0, -1) : k === 'clear' ? '' : (query + k).slice(0, 60);
+        if (k === 'done' || b.dataset.title) {
+            if (b.dataset.title) query = b.dataset.title;
+            showQuery();
+            clearBubbles();
+            toResults = true;
+            return search(true);
+        }
+        toResults = false;
+        query = k === 'del' ? query.slice(0, -1) : k === 'clear' ? '' : (query + k).slice(0, 60);
         showQuery();
-        predict(b);
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-            const q = query.trim();
-            history.replaceState(history.state, '', '#/search' + (q ? '?q=' + encodeURIComponent(q) : ''));
-            SM.route();
-        }, 450);
+        // A circle's letter continues from its own key; Space stays where it was.
+        let at = b;
+        if (b.classList.contains('tv-bubble')) at = (k !== ' ' && keyFor(k)) || anchor;
+        if (at !== b) focusEl(at);
+        predict(grid.contains(at) && !at.classList.contains('tv-bubble') ? at : null);
+        search();
     });
 
     // ---- full-screen picker instead of native dropdowns -----------------------------------
@@ -633,16 +708,41 @@
         if (zi < 0 || !usable(cur)) return focusDefault(true);
         // Below the video, start at the left of the controls (Source), not the nearest one.
         if (dir === 'down' && cur.matches('.modal-player .frame')) return focusEl(candidates(zs[zi]).find(el => el.closest('.player-bar')));
-        if (focusEl(pick(cur, candidates(zs[zi]), dir))) return;
+        if (focusEl(pick(cur, candidates(zs[zi]), dir))) return endPull();
+        if (dir === 'up' && zs[0] === rail && window.scrollY < 4) return pull();
         const step = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
         if (step && zs[zi + step]) enterZone(zs[zi + step], cur);
+    }
+
+    // Pull to refresh: Up with nothing above, three times, reloads Movies (with the newest
+    // version, when the TV app loads it from the website). A ring fills with each press.
+    const ring = document.createElement('div');
+    ring.className = 'tv-pull';
+    ring.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15"/></svg>';
+    document.body.appendChild(ring);
+    let pulls = 0, pullTimer = null;
+    function endPull() {
+        if (!pulls) return;
+        pulls = 0;
+        clearTimeout(pullTimer);
+        ring.classList.remove('on');
+    }
+    function pull() {
+        if (ring.classList.contains('go')) return;
+        pulls++;
+        clearTimeout(pullTimer);
+        ring.style.setProperty('--pull', String(pulls / 3));
+        ring.classList.add('on');
+        if (pulls < 3) return void (pullTimer = setTimeout(endPull, 1500));
+        ring.classList.add('go');
+        setTimeout(() => location.reload(), 600);
     }
 
     // Where focus lands when a page opens: the main Play button, else the first thing on screen.
     function focusDefault(force) {
         const zs = zones();
         if (zs[0] !== rail) return focusEl(candidates(zs[0])[0]);
-        if (document.body.dataset.route === 'search') return focusEl(keys.querySelector('.tv-next button') || keys.querySelector('.tv-keygrid button'));
+        if (document.body.dataset.route === 'search') return focusEl(keyFor(query.slice(-1).toLowerCase()) || keyFor('a'));
         const primary = view.querySelector('.hero-slide.on [data-play], .detail .actions [data-play], .detail .actions .btn');
         if (usable(primary)) return focusEl(primary);
         const first = candidates(view).filter(inViewport)[0];
@@ -691,6 +791,14 @@
     let enterContent = false;
     function afterRender() {
         patchPage();
+        // ✓ or a suggested title: on to the first result once it's there.
+        if (toResults && document.body.dataset.route === 'search') {
+            const first = candidates(view).filter(inViewport)[0];
+            if (first) {
+                toResults = false;
+                return focusEl(first);
+            }
+        }
         const cur = document.activeElement;
         const lost = !cur || cur === document.body || !usable(cur);
         if (!lost && !enterContent) return;
