@@ -161,11 +161,17 @@
     // On the TV a sync under a video competes with the player for the TV's slow CPU, so syncs
     // wait for the player to close.
     const underVideo = () => isTV() && !!document.querySelector('#modalRoot .modal-player');
-    let timer = null, held = false;
+    // A pending sync is only ever moved earlier: a later request pushing it back would let the
+    // steady stream of resume points during playback keep the sync from ever happening.
+    let timer = null, due = 0, held = false;
     function soon(ms) {
-        if (!account) return;
+        if (!account || (timer && due <= Date.now() + ms)) return;
         clearTimeout(timer);
-        timer = setTimeout(() => underVideo() ? (held = true) : sync(), ms);
+        due = Date.now() + ms;
+        timer = setTimeout(() => {
+            timer = null;
+            underVideo() ? (held = true) : sync();
+        }, ms);
     }
 
     SM.on('library', () => { if (!applying) soon(2500); });
@@ -176,8 +182,12 @@
     });
     // The TV keeps Movies open in the background, so coming back to it is when changes made
     // elsewhere show up: the page is drawn again with them, and with fresh TMDB data.
+    // Leaving (switching apps, turning the TV off) sends what's here, video or not.
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) return;
+        if (document.hidden) {
+            writeProgress();
+            return sync();
+        }
         if (isTV()) SM.api.forget();
         sync().then(() => { if (isTV() && !document.querySelector('#modalRoot .modal')) SM.route(); });
     });
@@ -270,7 +280,7 @@
     // vidrift has no start-time parameter; it takes the resume point by message, once per player,
     // and only once it's playing: before that it ignores it, and the 0 it reports would replace
     // the saved position.
-    let resumed = null;
+    let resumed = null, ended = null;
     window.addEventListener('message', e => {
         const frame = document.querySelector('#modalRoot #pFrame iframe');
         if (!frame || e.source !== frame.contentWindow) return;
@@ -290,6 +300,15 @@
             writeProgress();
             soon(15e3);
         }, 10e3);
+        // Into the credits counts as finished (as resumeAt sees it): the player moves Continue
+        // watching on to the next episode. It's sent now even under a video, once, since this is
+        // when people turn the TV off.
+        if (frame !== ended && time.d > 300 && time.t >= time.d - 120) {
+            ended = frame;
+            writeProgress();
+            SM.emit('play-end', k);
+            setTimeout(sync, 2500);
+        }
     });
 
     // Seconds to start at, or 0 when it was barely started or already finished.
