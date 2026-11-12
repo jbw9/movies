@@ -132,8 +132,20 @@
     // toggles full screen, OK three times reloads it, left and right skip 15 seconds.
 
     // cinesrc and vidstuck take a subtitle language in their URL (both match the track's name).
+    // A series (or movie) keeps the subtitles it was last watched with, synced with the account
+    // (sync.js); one watched for the first time starts with the last ones picked anywhere.
     const SUBS = ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Off'];
-    const subtitle = () => SM.ls.get('movies-tv-subs', 'English');
+    const SUBS_BY = 'movies-tv-subs-by';
+    const titleKey = () => SM.player.now ? SM.player.now.type + '-' + SM.player.now.id : null;
+    const subtitle = () => ((SM.ls.get(SUBS_BY, {}) || {})[titleKey()] || {}).lang || SM.ls.get('movies-tv-subs', 'English');
+    // What a title was simply opened with is kept at the oldest time, so a pick for it made on
+    // another device that hasn't arrived yet still wins when it does.
+    function keepSubtitle(lang, picked) {
+        const k = titleKey(), by = SM.ls.get(SUBS_BY, {}) || {};
+        if (!k || (by[k] && by[k].lang === lang)) return;
+        by[k] = { lang, at: picked ? Date.now() : 1 };
+        SM.ls.set(SUBS_BY, by);
+    }
     const playerModal = () => document.querySelector('#modalRoot .modal-player');
     const isFull = () => !!document.querySelector('#modalRoot .modal-player.tv-full');
 
@@ -163,6 +175,7 @@
     function tunePlayer(modal) {
         if (!modal.dataset.tv) {
             modal.dataset.tv = '1';
+            keepSubtitle(subtitle());
             const subs = document.createElement('label');
             subs.className = 'source-pick tv-subs';
             subs.innerHTML = `<span class="sources-label">Subtitles</span>
@@ -170,6 +183,7 @@
             modal.querySelector('.player-bar .source-pick').after(subs);
             subs.querySelector('select').addEventListener('change', e => {
                 SM.ls.set('movies-tv-subs', e.target.value);
+                keepSubtitle(e.target.value, true);
                 const old = modal.querySelector('#pFrame iframe');
                 if (old) delete old.dataset.tv;
                 tunePlayer(modal);

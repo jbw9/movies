@@ -1,8 +1,8 @@
-// Sync: My List, GOAT, history, watched episodes and where you stopped, shared by every device
-// signed in to the same account. Accounts are a username and password (supabase/accounts.sql);
-// a device keeps the sign-in token it got, never the password. Each entry carries a timestamp
-// and removals leave a marker, so merging keeps the newest change per title instead of
-// bringing deleted things back.
+// Sync: My List, GOAT, history, watched episodes, where you stopped and the TV's subtitles per
+// series, shared by every device signed in to the same account. Accounts are a username and
+// password (supabase/accounts.sql); a device keeps the sign-in token it got, never the password.
+// Each entry carries a timestamp and removals leave a marker, so merging keeps the newest change
+// per title instead of bringing deleted things back.
 (SM => {
     const SUPABASE = 'https://jbvkjvdthuzofvmhwctv.supabase.co';
     const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
@@ -11,10 +11,10 @@
     // Where a phone signs in a TV (link/index.html); the TV runs from a file, so it's spelled out.
     const LINK = 'https://jbw9.github.io/movies/link/';
     const { ls, esc, ui, library } = SM;
-    const ACCOUNT = 'sm-account', BASE = 'sm-sync-base', PROGRESS = 'sm-progress';
-    const SECTIONS = ['watchlist', 'goat', 'history', 'log', 'watched', 'progress'];
-    const LIBRARY_KEYS = ['sm-watchlist', 'sm-goat', 'sm-history', 'sm-log', 'watched', PROGRESS];
-    const KEEP_REMOVALS = 60 * 864e5;
+    const ACCOUNT = 'sm-account', BASE = 'sm-sync-base', PROGRESS = 'sm-progress', SUBS = 'movies-tv-subs-by';
+    const SECTIONS = ['watchlist', 'goat', 'history', 'log', 'watched', 'progress', 'subs'];
+    const LIBRARY_KEYS = ['sm-watchlist', 'sm-goat', 'sm-history', 'sm-log', 'watched', PROGRESS, SUBS];
+    const KEEP_REMOVALS = 60 * 864e5, KEEP_RESUME = 30 * 864e5, LOG_SIZE = 150;
     const isTV = () => document.documentElement.classList.contains('tv');
 
     // ---- Supabase ------------------------------------------------------------------------
@@ -45,13 +45,14 @@
 
     // What this device has right now, with each entry's own time where it has one.
     function current() {
-        const out = { watchlist: {}, goat: {}, history: {}, log: {}, watched: {}, progress: {} };
+        const out = { watchlist: {}, goat: {}, history: {}, log: {}, watched: {}, progress: {}, subs: {} };
         library.watchlist().forEach(item => { out.watchlist[keyOf(item)] = { own: item.addedAt, item }; });
         library.goat().forEach(item => { out.goat[keyOf(item)] = { own: item.addedAt, item }; });
         library.history().forEach(item => { out.history[keyOf(item)] = { own: item.updatedAt, item }; });
         library.log().forEach(item => { out.log[item.key] = { own: item.at, item }; });
         library.watchedSet().forEach(k => { out.watched[k] = {}; });
         Object.entries(ls.get(PROGRESS, {}) || {}).forEach(([k, p]) => { out.progress[k] = { own: p.at, item: p }; });
+        Object.entries(ls.get(SUBS, {}) || {}).forEach(([k, s]) => { out.subs[k] = { own: s.at, item: s }; });
         return out;
     }
 
@@ -83,36 +84,62 @@
                 if (!(e.gone && now - e.at > KEEP_REMOVALS)) out[k] = e;
             });
         });
+        prune(doc, now);
         return doc;
+    }
+
+    // Resume points nobody needs any more go after a month: a series' earlier episodes once a
+    // later one has been played, and a movie that was finished once it's out of Continue watching
+    // (which hides finished movies by their resume point). The latest episode of every series and
+    // every unfinished movie stay for good. South Park mode counts an episode with a resume point
+    // as seen (southpark.js), so South Park keeps them all. Every device prunes the same way when
+    // it merges, so nothing pruned comes back from another device.
+    function prune(doc, now) {
+        const latest = {};
+        alive(doc.progress).forEach(([k, e]) => {
+            const show = k.split('-s')[0];
+            if (k.startsWith('tv-') && !(latest[show] >= e.at)) latest[show] = e.at;
+        });
+        alive(doc.progress).forEach(([k, e]) => {
+            if (now - e.at < KEEP_RESUME || k.startsWith('tv-2190-')) return;
+            const p = e.item, inHistory = doc.history[k] && !doc.history[k].gone;
+            const done = k.startsWith('tv-') ? e.at < latest[k.split('-s')[0]] : p.d && p.t > .95 * p.d && !inHistory;
+            if (done) delete doc.progress[k];
+        });
+        // History lists the last LOG_SIZE plays.
+        alive(doc.log).sort((a, b) => b[1].at - a[1].at).slice(LOG_SIZE).forEach(([k]) => delete doc.log[k]);
     }
 
     const alive = sec => Object.entries(sec || {}).filter(([, e]) => !e.gone);
 
     // Writes the merged state into the keys the rest of the site reads. Returns true if anything changed.
     function apply(doc) {
-        const before = JSON.stringify([library.watchlist(), library.goat(), library.history(), library.log(), [...library.watchedSet()].sort(), ls.get(PROGRESS, {})]);
+        const before = JSON.stringify([library.watchlist(), library.goat(), library.history(), library.log(), [...library.watchedSet()].sort(), ls.get(PROGRESS, {}), ls.get(SUBS, {})]);
         const byAdded = sec => alive(sec).map(([, e]) => e.item).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
         const watchlist = byAdded(doc.watchlist), goat = byAdded(doc.goat);
         const history = alive(doc.history).map(([, e]) => e.item).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 60);
-        const log = alive(doc.log).map(([, e]) => e.item).sort((a, b) => b.at - a.at).slice(0, 500);
+        const log = alive(doc.log).map(([, e]) => e.item).sort((a, b) => b.at - a.at).slice(0, LOG_SIZE);
         const watched = alive(doc.watched).map(([k]) => k);
         const progress = {};
         alive(doc.progress).sort((a, b) => b[1].at - a[1].at).slice(0, 300).forEach(([k, e]) => { progress[k] = e.item; });
-        if (JSON.stringify([watchlist, goat, history, log, [...watched].sort(), progress]) === before) return false;
+        const subs = {};
+        alive(doc.subs).forEach(([k, e]) => { subs[k] = e.item; });
+        if (JSON.stringify([watchlist, goat, history, log, [...watched].sort(), progress, subs]) === before) return false;
         ls.set('sm-watchlist', watchlist);
         ls.set('sm-goat', goat);
         ls.set('sm-history', history);
         ls.set('sm-log', log);
         ls.set('watched', watched);
         ls.set(PROGRESS, progress);
+        ls.set(SUBS, subs);
         return true;
     }
 
-    let running = null, again = false, lastSync = null, lastError = '', applying = false;
+    let running = null, again = false, lastSync = null, lastError = '', applying = false, ranAt = 0, redraw = false;
 
     async function run() {
         writeProgress();
-        const now = Date.now(), { token } = account;
+        const now = ranAt = Date.now(), { token } = account;
         let remote;
         try {
             remote = (await rpc('load_account', { tok: token, dev: deviceName() })).data || {};
@@ -124,10 +151,21 @@
             }
             throw e;
         }
+        // A device that slept mid-sync (a TV switched off, a laptop closed) holds a copy from before
+        // it slept; saving it would wipe what other devices sent meanwhile, so it starts over.
+        if (Date.now() - now > 30e3) {
+            again = true;
+            return;
+        }
         const merged = merge(localDoc(ls.get(BASE, {}) || {}, now), remote, now);
         applying = true;
         try {
-            if (apply(merged)) SM.emit('library', { kind: 'sync' });
+            if (apply(merged)) redraw = true;
+            // On the TV nothing is drawn under a video; the page catches up once the player closes.
+            if (redraw && !underVideo()) {
+                redraw = false;
+                SM.emit('library', { kind: 'sync' });
+            }
         } finally {
             applying = false;
         }
@@ -158,28 +196,26 @@
         return running;
     }
 
-    // On the TV a sync under a video competes with the player for the TV's slow CPU, so syncs
-    // wait for the player to close.
+    // A TV is mostly switched off, or left with Home, with the video still open, so it syncs under
+    // the video too. It just doesn't draw the page again there (run), which would compete with
+    // the player for the TV's slow CPU.
     const underVideo = () => isTV() && !!document.querySelector('#modalRoot .modal-player');
     // A pending sync is only ever moved earlier: a later request pushing it back would let the
     // steady stream of resume points during playback keep the sync from ever happening.
-    let timer = null, due = 0, held = false;
+    let timer = null, due = 0;
     function soon(ms) {
         if (!account || (timer && due <= Date.now() + ms)) return;
         clearTimeout(timer);
         due = Date.now() + ms;
         timer = setTimeout(() => {
             timer = null;
-            underVideo() ? (held = true) : sync();
+            sync();
         }, ms);
     }
 
     SM.on('library', () => { if (!applying) soon(2500); });
-    SM.on('modal-close', () => {
-        if (!held) return;
-        held = false;
-        soon(1000);
-    });
+    // Sends where the player stopped, and on the TV draws what changed while it was open.
+    SM.on('modal-close', () => soon(1000));
     // The TV keeps Movies open in the background, so coming back to it is when changes made
     // elsewhere show up: the page is drawn again with them, and with fresh TMDB data.
     // Leaving (switching apps, turning the TV off) sends what's here, video or not.
@@ -191,11 +227,7 @@
         if (isTV()) SM.api.forget();
         sync().then(() => { if (isTV() && !document.querySelector('#modalRoot .modal')) SM.route(); });
     });
-    setInterval(() => {
-        if (document.hidden) return;
-        if (underVideo()) held = true;
-        else sync();
-    }, 3 * 60e3);
+    setInterval(() => { if (!document.hidden) sync(); }, 3 * 60e3);
 
     // ---- resume points ---------------------------------------------------------------------
 
@@ -298,7 +330,9 @@
         pending[k] = { t: Math.floor(time.t), d: Math.floor(time.d), at: Date.now() };
         if (!flushTimer) flushTimer = setTimeout(() => {
             writeProgress();
-            soon(15e3);
+            // Every 3 minutes while it plays, so a TV switched off mid-episode has already sent about
+            // where it got to; closing the player or leaving sends the rest.
+            if (Date.now() - ranAt > 3 * 60e3) soon(0);
         }, 10e3);
         // Into the credits counts as finished (as resumeAt sees it): the player moves Continue
         // watching on to the next episode. It's sent now even under a video, once, since this is
