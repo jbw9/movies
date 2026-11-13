@@ -5,7 +5,9 @@
     const params = new URLSearchParams(location.search);
     if (params.has('tv')) SM.ls.set('movies-tv', params.get('tv') === '0' ? 'no' : 'yes');
     const isTizen = typeof window.tizen !== 'undefined' && !!window.tizen.application;
-    if (!isTizen && SM.ls.get('movies-tv', 'no') !== 'yes') return;
+    // The Bonito launcher's Android TV app, which opens Movies in its own WebView.
+    const android = !isTizen && window.AndroidTV;
+    if (!isTizen && !android && SM.ls.get('movies-tv', 'no') !== 'yes') return;
 
     const { esc, icon, ui, library, api } = SM;
     const LAUNCHER_ID = 'SkrFlap001.SeekerFlap';
@@ -33,25 +35,39 @@
     ];
     const installed = {}; // app key -> Tizen app id
 
+    const found = list => list.forEach(info => {
+        const name = String(info.name || '').trim().toLowerCase();
+        APPS.forEach(a => { if (!installed[a.key] && a.app.test(name)) installed[a.key] = info.id; });
+    });
     if (isTizen) {
         try {
-            tizen.application.getAppsInfo(list => list.forEach(info => {
-                const name = String(info.name || '').trim().toLowerCase();
-                APPS.forEach(a => { if (!installed[a.key] && a.app.test(name)) installed[a.key] = info.id; });
-            }), () => {});
+            tizen.application.getAppsInfo(found, () => {});
         } catch (e) {}
+    } else if (android) {
+        try {
+            found(JSON.parse(AndroidTV.apps()).map(a => ({ id: a.pkg, name: a.label })));
+        } catch (e) {}
+        // The app's Back key comes here (android/ in bonito-tv), not as a keydown.
+        window.tvKey = k => { if (k === 'back') back(); };
     }
 
     const appFor = providerName => APPS.find(a => a.provider.test(providerName)) || null;
 
     function launchApp(a) {
-        if (!isTizen) return ui.toast('Preview: this would open ' + a.label, { icon: 'info' });
+        if (!isTizen && !android) return ui.toast('Preview: this would open ' + a.label, { icon: 'info' });
         const id = installed[a.key];
         if (!id) return ui.toast(a.label + " isn't installed on this TV", { icon: 'info' });
+        if (android) {
+            if (!AndroidTV.launch(id)) ui.toast("Couldn't open " + a.label, { icon: 'info' });
+            return;
+        }
         tizen.application.launch(id, () => {}, () => ui.toast("Couldn't open " + a.label, { icon: 'info' }));
     }
 
     function exitApp() {
+        // On Android the launcher opened Movies in the same WebView, so it's the referrer.
+        // Not history.back(): Movies' own pages are history entries too.
+        if (android) return /[?&]android\b/.test(document.referrer) ? location.replace(document.referrer) : AndroidTV.exit();
         if (!isTizen) return ui.toast('Preview: this would return to the launcher', { icon: 'info' });
         // Movies stays open behind the launcher, so opening it again is instant; it refreshes
         // itself when it comes back (sync.js).
@@ -100,7 +116,7 @@
 
         const episode = isSeries && ep ? `S${ep.season} · E${ep.episode}` : '';
         const tile = ({ app, note, logo }) => {
-            const missing = isTizen && !installed[app.key];
+            const missing = (isTizen || android) && !installed[app.key];
             return `<button class="tv-app${missing ? ' missing' : ''}" data-tv-app="${app.key}">
                     ${logo ? `<img src="${esc(logo)}" alt="">` : ''}
                     <span><strong>${esc(app.label)}</strong><small>${missing ? 'Not installed' : note}</small></span>
