@@ -6,8 +6,8 @@
 (SM => {
     const SUPABASE = 'https://jbvkjvdthuzofvmhwctv.supabase.co';
     const KEY = 'sb_publishable_hbxcjbYF5H8py5gGLokxPg_tD9nGsNl';
-    // Where people write when they forget their password; reset it as supabase/accounts.sql says.
-    const CONTACT = 'jonathanbernard265@gmail.com';
+    // Where people ask for a new password when they forget theirs; reset it as supabase/accounts.sql says.
+    const RESET_FORM = 'https://forms.gle/qrU5QFop6YwihhSR7';
     // Where a phone signs in a TV (link/index.html); the TV runs from a file, so it's spelled out.
     const LINK = 'https://jbw9.github.io/movies/link/';
     const { ls, esc, ui, library } = SM;
@@ -427,7 +427,7 @@
         ui.toast('Signed out', { icon: 'check' });
     }
 
-    const forgotNote = () => `Forgot your password? Email <a href="mailto:${CONTACT}?subject=${encodeURIComponent('Movies password reset')}">${CONTACT}</a>
+    const forgotNote = () => `Forgot your password? <a href="${RESET_FORM}" target="_blank" rel="noopener">Fill in this form</a>
         with your username and you'll get a new one.`;
 
     // A password box with an eye button that shows what was typed.
@@ -511,7 +511,7 @@
                     <button type="button" class="btn btn-ghost" data-tv-auth="up">Create account</button>
                     <button type="button" class="btn btn-ghost" data-close>Not now</button>
                 </div>
-                <p class="panel-note auth-forgot">Forgot your password? Email ${CONTACT} with your username and you'll get a new one.</p>
+                <p class="panel-note auth-forgot">Forgot your password? Fill in ${RESET_FORM.replace('https://', '')} with your username and you'll get a new one.</p>
             </div>`, 'modal-auth modal-tv-link');
 
         // A code lasts 10 minutes (supabase/accounts.sql); a new one replaces it when it runs out.

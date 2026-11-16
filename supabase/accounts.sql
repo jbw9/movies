@@ -5,7 +5,7 @@
 -- policies, so the public key can't read or change them directly. Passwords are stored as
 -- bcrypt hashes; a device keeps a sign-in token, never the password.
 --
--- Resetting someone's password (they email you their username):
+-- Resetting someone's password (they send their username through the reset form):
 --   update public.accounts set pass = extensions.crypt('their-new-password', extensions.gen_salt('bf', 10))
 --   where username = 'their-username';
 -- Add this too to sign them out everywhere:
@@ -268,12 +268,12 @@ language sql security definer set search_path = public, extensions as $$
 $$;
 
 -- The admin page (admin/index.html): every account with what's in it, its devices and what it
--- played, plus visits. Only a session belonging to `jonathan` or `h1r0l9` gets an answer.
+-- played, plus visits. Only a session belonging to `jonathan`, `h1r0l9` or `wrjodjana` gets an answer.
 drop function if exists public.admin_overview(uuid);
 create or replace function public.admin_overview(tok uuid) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 begin
-    if not exists (select 1 from sessions where token = tok and username in ('jonathan', 'h1r0l9')) then
+    if not exists (select 1 from sessions where token = tok and username in ('jonathan', 'h1r0l9', 'wrjodjana')) then
         raise exception 'Not allowed';
     end if;
     update sessions set last_seen = now() where token = tok;
